@@ -2,4 +2,4 @@ module CueMind
 
 go 1.22.5
 
-require github.com/google/generative-ai-go v0.19.0 // indirect
+require github.com/go-chi/chi/v5 v5.2.1
