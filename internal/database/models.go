@@ -10,6 +10,22 @@ import (
 	"github.com/google/uuid"
 )
 
+type Card struct {
+	ID           uuid.UUID
+	Front        string
+	Back         string
+	CreatedAt    time.Time
+	CollectionID uuid.UUID
+}
+
+type Collection struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Name      string
+	UserID    uuid.UUID
+}
+
 type User struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
