@@ -1,7 +1,7 @@
 package api
 
 import (
-	"CueMind/internal/database"
+	"CueMind/internal/server"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,14 +18,9 @@ import (
 var UniqueViolationError = pq.Error{Code: pq.ErrorCode("23505")}
 
 func (cfg *Config) RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	type RegisterData struct {
-		Email    string `json:"email"`
-		UserName string `json:"username"`
-		Password string `json:"password"`
-	}
 
 	//get the user info from body
-	regData := RegisterData{}
+	regData := server.RegisterData{}
 	err := json.NewDecoder(r.Body).Decode(&regData)
 	if err != nil {
 		RespondWithErr(w, 500, err.Error())
@@ -47,21 +42,22 @@ func (cfg *Config) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	regData.Password = hashedPass
 
 	//create a new user in DB
-	dbUser, err := cfg.Server.DB.CreateUser(r.Context(), database.CreateUserParams{Username: regData.UserName, Email: regData.Email, Password: regData.Password})
+	user, err := cfg.Server.CraeteUser(r.Context(), regData)
 	if err != nil {
 		RespondWithErr(w, 403, "Email or username is already in use")
 		return
 	}
-	RespondWithJson(w, 200, dbUser)
+	RespondWithJson(w, 200, user)
 }
 
 func (cfg *Config) LoginHandler(w http.ResponseWriter, r *http.Request) {
+
+	//get the data from body
 	type LoginData struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	//get the data from body
 	logData := LoginData{}
 	err := json.NewDecoder(r.Body).Decode(&logData)
 	if err != nil {
@@ -70,20 +66,25 @@ func (cfg *Config) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(logData.Email) == 0 || len(logData.Password) == 0 {
+		RespondWithErr(w, 400, "login fields cannot be empty")
+		return
+	}
+
 	//get entry from user
-	dbUser, err := cfg.Server.DB.GetUser(r.Context(), logData.Email)
+	user, err := cfg.Server.GetUser(r.Context(), logData.Email)
 	if err != nil {
 		RespondWithErr(w, 404, "There is no such user")
 		return
 	}
-	if !ValidatePass(logData.Password, dbUser.Password) {
+	if !ValidatePass(logData.Password, user.Password()) {
 		RespondWithErr(w, 403, "Invalid password")
 		return
 	}
 
 	// implement JWT creation
 	claims := jwt.MapClaims{
-		"sub": dbUser.ID.String(),
+		"sub": user.ID.String(),
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

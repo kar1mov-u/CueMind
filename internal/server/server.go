@@ -10,16 +10,32 @@ import (
 )
 
 type Server struct {
-	LLM *llm.LLMService
-	DB  *database.Queries
+	lLM *llm.LLMService
+	dB  *database.Queries
 }
 
 func NewServer(llm *llm.LLMService, db *database.Queries) *Server {
-	return &Server{LLM: llm, DB: db}
+	return &Server{lLM: llm, dB: db}
+}
+
+func (s *Server) CraeteUser(ctx context.Context, regData RegisterData) (*User, error) {
+	dbUser, err := s.dB.CreateUser(ctx, database.CreateUserParams{Username: regData.UserName, Email: regData.Email, Password: regData.Password})
+	if err != nil {
+		return nil, fmt.Errorf("error on creating user: %v", err)
+	}
+	return &User{UserName: dbUser.Username, Email: dbUser.Email, ID: dbUser.ID}, nil
+}
+
+func (s *Server) GetUser(ctx context.Context, email string) (*User, error) {
+	dbUser, err := s.dB.GetUser(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("error on getting user: %v", err)
+	}
+	return &User{ID: dbUser.ID, Email: dbUser.Email, password: dbUser.Password, UserName: dbUser.Username}, nil
 }
 
 func (s *Server) CreateCollection(ctx context.Context, userId uuid.UUID, collec *Collection) error {
-	id, err := s.DB.CreateCollection(ctx, database.CreateCollectionParams{Name: collec.Name, UserID: userId})
+	id, err := s.dB.CreateCollection(ctx, database.CreateCollectionParams{Name: collec.Name, UserID: userId})
 	if err != nil {
 		return fmt.Errorf("error on creating collection: %v", err)
 	}
@@ -31,12 +47,12 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 	// var collectionFull CollectionFull
 	var cards []Card
 
-	dbCollection, err := s.DB.GetCollectionById(ctx, database.GetCollectionByIdParams{ID: collectId, UserID: userId})
+	dbCollection, err := s.dB.GetCollectionById(ctx, database.GetCollectionByIdParams{ID: collectId, UserID: userId})
 	if err != nil {
 		return nil, fmt.Errorf("error on gettig collection: %v", err)
 	}
 
-	dbCards, err := s.DB.GetCardsFomCollection(ctx, collectId)
+	dbCards, err := s.dB.GetCardsFomCollection(ctx, collectId)
 	if err != nil {
 		return nil, fmt.Errorf("error on getting cards: %v", err)
 	}
@@ -44,6 +60,7 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 		var card Card
 		card.Back = dbCards[i].Back
 		card.Front = dbCards[i].Front
+		card.ID = dbCards[i].ID
 		cards = append(cards, card)
 	}
 	collection := Collection{Name: dbCollection.Name, ID: dbCollection.ID}
@@ -52,7 +69,7 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 }
 
 func (s *Server) CheckUserOwnership(ctx context.Context, collectionID, userID uuid.UUID) error {
-	v, err := s.DB.CheckUserCollectionOwnership(ctx, database.CheckUserCollectionOwnershipParams{ID: collectionID, UserID: userID})
+	v, err := s.dB.CheckUserCollectionOwnership(ctx, database.CheckUserCollectionOwnershipParams{ID: collectionID, UserID: userID})
 	if err != nil {
 		return fmt.Errorf("user doenst own the collection: %v", err)
 	}
@@ -63,7 +80,7 @@ func (s *Server) CheckUserOwnership(ctx context.Context, collectionID, userID uu
 }
 
 func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Collection, error) {
-	dbCollections, err := s.DB.ListCollections(ctx, userID)
+	dbCollections, err := s.dB.ListCollections(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("error on listing collections: %v", err)
 	}
@@ -81,7 +98,7 @@ func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Colle
 }
 
 func (s *Server) GetCard(ctx context.Context, userID, cardID uuid.UUID) (*Card, error) {
-	dbCard, err := s.DB.GetCard(ctx, database.GetCardParams{ID: cardID, UserID: userID})
+	dbCard, err := s.dB.GetCard(ctx, database.GetCardParams{ID: cardID, UserID: userID})
 	if err != nil {
 		return nil, fmt.Errorf("error on getting card: %v", err)
 	}
@@ -89,7 +106,7 @@ func (s *Server) GetCard(ctx context.Context, userID, cardID uuid.UUID) (*Card, 
 }
 
 func (s *Server) CreateCard(ctx context.Context, collectionID uuid.UUID, card *Card) error {
-	cardID, err := s.DB.CreateCard(ctx, database.CreateCardParams{Front: card.Front, Back: card.Back, CollectionID: collectionID})
+	cardID, err := s.dB.CreateCard(ctx, database.CreateCardParams{Front: card.Front, Back: card.Back, CollectionID: collectionID})
 	if err != nil {
 		return fmt.Errorf("error on creating card: %v", err)
 	}
@@ -98,7 +115,7 @@ func (s *Server) CreateCard(ctx context.Context, collectionID uuid.UUID, card *C
 }
 
 func (s *Server) DeleteCard(ctx context.Context, cardID, collectionID uuid.UUID) error {
-	err := s.DB.DeleteCard(ctx, database.DeleteCardParams{ID: cardID, CollectionID: collectionID})
+	err := s.dB.DeleteCard(ctx, database.DeleteCardParams{ID: cardID, CollectionID: collectionID})
 	if err != nil {
 		return fmt.Errorf("error on deleting card: %v", err)
 	}

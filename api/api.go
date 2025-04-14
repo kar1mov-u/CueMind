@@ -79,7 +79,11 @@ func (cfg *Config) CreateCollection(w http.ResponseWriter, r *http.Request) {
 	var collection server.Collection
 	err = json.NewDecoder(r.Body).Decode(&collection)
 	if err != nil {
-		RespondWithErr(w, 500, err.Error())
+		RespondWithErr(w, 500, "error on decoding")
+		return
+	}
+	if collection.Name == "" {
+		RespondWithErr(w, 400, "name cannot be empty")
 		return
 	}
 	err = cfg.Server.CreateCollection(r.Context(), userID, &collection)
@@ -207,7 +211,7 @@ func getIdFromContext(ctx context.Context, key string) (uuid.UUID, error) {
 
 func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
 
-	idStr := chi.URLParam(r, "collectionID")
+	idStr := chi.URLParam(r, key)
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return uuid.UUID{}, fmt.Errorf("invalid %v path parameter: %v", key, err)

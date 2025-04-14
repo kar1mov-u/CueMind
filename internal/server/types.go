@@ -17,3 +17,20 @@ type Card struct {
 	Front string    `json:"front"`
 	Back  string    `json:"back"`
 }
+
+type RegisterData struct {
+	Email    string `json:"email"`
+	UserName string `json:"username"`
+	Password string `json:"password"`
+}
+
+type User struct {
+	ID       uuid.UUID `json:"id"`
+	Email    string    `json:"email"`
+	UserName string    `json:"username"`
+	password string
+}
+
+func (u *User) Password() string {
+	return u.password
+}
