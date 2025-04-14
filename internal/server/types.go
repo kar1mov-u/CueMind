@@ -13,6 +13,7 @@ type CollectionFull struct {
 }
 
 type Card struct {
-	Front string `json:"front"`
-	Back  string `json:"back"`
+	ID    uuid.UUID `json:"id"`
+	Front string    `json:"front"`
+	Back  string    `json:"back"`
 }

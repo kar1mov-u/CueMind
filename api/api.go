@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -34,9 +35,14 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 
 		router.Route("/collections", func(r chi.Router) {
 			r.Use(JWTMiddleware(cfg.JWTKey))
-			r.Get("/", cfg.ListCollections)
-			r.Get("/{collectionID}", cfg.GetCollection)
 			r.Post("/", cfg.CreateCollection)
+			r.Get("/", cfg.ListCollections)
+
+			r.Route("/{collectionID}", func(r chi.Router) {
+				r.Get("/", cfg.GetCollection)
+				r.Get("/{cardID}", cfg.GetCard)
+				r.Post("/", cfg.CreateCard)
+			})
 		})
 
 	})
@@ -65,7 +71,7 @@ func DBConnect(dbConnString string) *database.Queries {
 }
 
 func (cfg *Config) CreateCollection(w http.ResponseWriter, r *http.Request) {
-	userID, err := getUserID(r.Context())
+	userID, err := getIdFromContext(r.Context(), "userID")
 	if err != nil {
 		RespondWithErr(w, 500, err.Error())
 		return
@@ -85,7 +91,7 @@ func (cfg *Config) CreateCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *Config) GetCollection(w http.ResponseWriter, r *http.Request) {
-	userID, err := getUserID(r.Context())
+	userID, err := getIdFromContext(r.Context(), "userID")
 	if err != nil {
 		RespondWithErr(w, 500, err.Error())
 		return
@@ -108,7 +114,7 @@ func (cfg *Config) GetCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *Config) ListCollections(w http.ResponseWriter, r *http.Request) {
-	userID, err := getUserID(r.Context())
+	userID, err := getIdFromContext(r.Context(), "userID")
 	if err != nil {
 		RespondWithErr(w, 500, err.Error())
 	}
@@ -120,11 +126,91 @@ func (cfg *Config) ListCollections(w http.ResponseWriter, r *http.Request) {
 	RespondWithJson(w, 200, collections)
 }
 
-func getUserID(ctx context.Context) (uuid.UUID, error) {
-	idStr := ctx.Value("userID").(string)
+func (cfg *Config) GetCard(w http.ResponseWriter, r *http.Request) {
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	cardId, err := getIdFromPath(r, "cardID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+	// collectionID, err := getIdFromPath(r, "collectionID")
+	// if err != nil {
+	// 	RespondWithErr(w, 400, err.Error())
+	// 	return
+	// }
+
+	card, err := cfg.Server.GetCard(r.Context(), userID, cardId)
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	RespondWithJson(w, 200, card)
+
+}
+
+func (cfg *Config) CreateCard(w http.ResponseWriter, r *http.Request) {
+
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	collectionID, err := getIdFromPath(r, "collectionID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	//get card data from requst
+	var card server.Card
+	err = json.NewDecoder(r.Body).Decode(&card)
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+	if len(card.Front) == 0 || len(card.Back) == 0 {
+		RespondWithErr(w, 400, "Card data cannot be empty")
+		return
+	}
+
+	//check that user owns the collection
+	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
+	if err != nil {
+		RespondWithErr(w, 403, err.Error())
+		return
+	}
+
+	//create card
+	err = cfg.Server.CreateCard(r.Context(), collectionID, &card)
+	if err != nil {
+		RespondWithErr(w, 500, err.Error())
+		return
+	}
+	RespondWithJson(w, 200, card)
+}
+
+func getIdFromContext(ctx context.Context, key string) (uuid.UUID, error) {
+	idStr := ctx.Value(key).(string)
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return uuid.UUID{}, err
+		return uuid.UUID{}, fmt.Errorf("invalid %v context value: %v", key, err)
+	}
+	return id, nil
+}
+
+func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
+
+	idStr := chi.URLParam(r, "collectionID")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("invalid %v path parameter: %v", key, err)
 	}
 	return id, nil
 }

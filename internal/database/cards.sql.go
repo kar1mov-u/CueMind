@@ -11,6 +11,66 @@ import (
 	"github.com/google/uuid"
 )
 
+const createCard = `-- name: CreateCard :one
+INSERT INTO cards(
+    front, back, created_at, collection_id
+) VALUES 
+    ($1, $2, NOW(), $3)
+RETURNING id
+`
+
+type CreateCardParams struct {
+	Front        string
+	Back         string
+	CollectionID uuid.UUID
+}
+
+func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, createCard, arg.Front, arg.Back, arg.CollectionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deleteCard = `-- name: DeleteCard :exec
+DELETE FROM cards WHERE id=$1 and collection_id=$2
+`
+
+type DeleteCardParams struct {
+	ID           uuid.UUID
+	CollectionID uuid.UUID
+}
+
+func (q *Queries) DeleteCard(ctx context.Context, arg DeleteCardParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCard, arg.ID, arg.CollectionID)
+	return err
+}
+
+const getCard = `-- name: GetCard :one
+SELECT cards.id, cards.front, cards.back, cards.created_at, cards.collection_id
+FROM cards
+JOIN collections ON cards.collection_id = collections.id
+WHERE cards.id = $1 AND collections.user_id = $2
+`
+
+type GetCardParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (Card, error) {
+	row := q.db.QueryRowContext(ctx, getCard, arg.ID, arg.UserID)
+	var i Card
+	err := row.Scan(
+		&i.ID,
+		&i.Front,
+		&i.Back,
+		&i.CreatedAt,
+		&i.CollectionID,
+	)
+	return i, err
+}
+
 const getCardsFomCollection = `-- name: GetCardsFomCollection :many
 SELECT id, front, back, created_at, collection_id FROM cards WHERE collection_id=$1
 `

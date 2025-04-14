@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const checkUserCollectionOwnership = `-- name: CheckUserCollectionOwnership :one
+SELECT 1 FROM collections WHERE id = $1 AND user_id = $2
+`
+
+type CheckUserCollectionOwnershipParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) CheckUserCollectionOwnership(ctx context.Context, arg CheckUserCollectionOwnershipParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, checkUserCollectionOwnership, arg.ID, arg.UserID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createCollection = `-- name: CreateCollection :one
 INSERT INTO collections(
     created_at, name, user_id

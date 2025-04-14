@@ -40,7 +40,7 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 	if err != nil {
 		return nil, fmt.Errorf("error on getting cards: %v", err)
 	}
-	for i, _ := range dbCards {
+	for i := range dbCards {
 		var card Card
 		card.Back = dbCards[i].Back
 		card.Front = dbCards[i].Front
@@ -51,6 +51,17 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 
 }
 
+func (s *Server) CheckUserOwnership(ctx context.Context, collectionID, userID uuid.UUID) error {
+	v, err := s.DB.CheckUserCollectionOwnership(ctx, database.CheckUserCollectionOwnershipParams{ID: collectionID, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("user doenst own the collection: %v", err)
+	}
+	if v != 1 {
+		return fmt.Errorf("error ownership res doesnt equals 1")
+	}
+	return nil
+}
+
 func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Collection, error) {
 	dbCollections, err := s.DB.ListCollections(ctx, userID)
 	if err != nil {
@@ -58,7 +69,7 @@ func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Colle
 	}
 
 	var collections []Collection
-	for i, _ := range dbCollections {
+	for i := range dbCollections {
 		var collection Collection
 		collection.ID = dbCollections[i].ID
 		collection.Name = dbCollections[i].Name
@@ -67,4 +78,29 @@ func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Colle
 	}
 
 	return collections, nil
+}
+
+func (s *Server) GetCard(ctx context.Context, userID, cardID uuid.UUID) (*Card, error) {
+	dbCard, err := s.DB.GetCard(ctx, database.GetCardParams{ID: cardID, UserID: userID})
+	if err != nil {
+		return nil, fmt.Errorf("error on getting card: %v", err)
+	}
+	return &Card{Front: dbCard.Front, Back: dbCard.Back, ID: cardID}, nil
+}
+
+func (s *Server) CreateCard(ctx context.Context, collectionID uuid.UUID, card *Card) error {
+	cardID, err := s.DB.CreateCard(ctx, database.CreateCardParams{Front: card.Front, Back: card.Back, CollectionID: collectionID})
+	if err != nil {
+		return fmt.Errorf("error on creating card: %v", err)
+	}
+	card.ID = cardID
+	return nil
+}
+
+func (s *Server) DeleteCard(ctx context.Context, cardID, collectionID uuid.UUID) error {
+	err := s.DB.DeleteCard(ctx, database.DeleteCardParams{ID: cardID, CollectionID: collectionID})
+	if err != nil {
+		return fmt.Errorf("error on deleting card: %v", err)
+	}
+	return nil
 }
