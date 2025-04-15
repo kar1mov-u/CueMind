@@ -26,12 +26,10 @@ type Config struct {
 func (cfg *Config) CreateEndpoints() http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
-	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("pong"))
-	})
 	router.Route("/api", func(router chi.Router) {
 		router.Post("/users/register", cfg.RegisterHandler)
 		router.Post("/users/login", cfg.LoginHandler)
+		router.Post("/upload", cfg.UploadFile)
 
 		router.Route("/collections", func(r chi.Router) {
 			r.Use(JWTMiddleware(cfg.JWTKey))
@@ -142,11 +140,6 @@ func (cfg *Config) GetCard(w http.ResponseWriter, r *http.Request) {
 		RespondWithErr(w, 400, err.Error())
 		return
 	}
-	// collectionID, err := getIdFromPath(r, "collectionID")
-	// if err != nil {
-	// 	RespondWithErr(w, 400, err.Error())
-	// 	return
-	// }
 
 	card, err := cfg.Server.GetCard(r.Context(), userID, cardId)
 	if err != nil {

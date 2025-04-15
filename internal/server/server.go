@@ -3,19 +3,22 @@ package server
 import (
 	"CueMind/internal/database"
 	"CueMind/internal/llm"
+	"CueMind/internal/storage"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/google/uuid"
 )
 
 type Server struct {
-	lLM *llm.LLMService
-	dB  *database.Queries
+	lLM     *llm.LLMService
+	dB      *database.Queries
+	storage *storage.Storage
 }
 
-func NewServer(llm *llm.LLMService, db *database.Queries) *Server {
-	return &Server{lLM: llm, dB: db}
+func NewServer(llm *llm.LLMService, db *database.Queries, storage *storage.Storage) *Server {
+	return &Server{lLM: llm, dB: db, storage: storage}
 }
 
 func (s *Server) CraeteUser(ctx context.Context, regData RegisterData) (*User, error) {
@@ -120,4 +123,9 @@ func (s *Server) DeleteCard(ctx context.Context, cardID, collectionID uuid.UUID)
 		return fmt.Errorf("error on deleting card: %v", err)
 	}
 	return nil
+}
+
+func (s *Server) UploadFile(file io.Reader, objectKey string) error {
+	ctx := context.Background()
+	return s.storage.UploadFile(ctx, objectKey, file)
 }

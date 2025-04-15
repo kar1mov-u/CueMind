@@ -19,5 +19,5 @@ CREATE TABLE cards(
 
 
 -- +goose Down
-DROP TABLE cards
-DROP TABLE collections
+DROP TABLE cards;
+DROP TABLE collections;
