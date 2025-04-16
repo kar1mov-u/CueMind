@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"CueMind/internal/database"
 	"CueMind/internal/server"
@@ -29,7 +30,7 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 	router.Route("/api", func(router chi.Router) {
 		router.Post("/users/register", cfg.RegisterHandler)
 		router.Post("/users/login", cfg.LoginHandler)
-		router.Post("/upload", cfg.UploadFile)
+		// router.Post("/upload", cfg.UploadFile)
 
 		router.Route("/collections", func(r chi.Router) {
 			r.Use(JWTMiddleware(cfg.JWTKey))
@@ -37,9 +38,11 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 			r.Get("/", cfg.ListCollections)
 
 			r.Route("/{collectionID}", func(r chi.Router) {
+				r.Post("/upload", cfg.UploadFile)
 				r.Get("/", cfg.GetCollection)
 				r.Get("/{cardID}", cfg.GetCard)
 				r.Post("/", cfg.CreateCard)
+				r.Get("/files", cfg.GetFilesForCollection)
 			})
 		})
 
@@ -210,4 +213,12 @@ func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
 		return uuid.UUID{}, fmt.Errorf("invalid %v path parameter: %v", key, err)
 	}
 	return id, nil
+}
+
+func createPath(objectKey string) string {
+	bucket := os.Getenv("BUCKET_NAME")
+	region := os.Getenv("AWS_REGION")
+
+	s := fmt.Sprintf("https://%v.s3.%v.amazonaws.com/%v", bucket, region, objectKey)
+	return s
 }

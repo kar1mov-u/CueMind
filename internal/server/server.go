@@ -129,3 +129,29 @@ func (s *Server) UploadFile(file io.Reader, objectKey string) error {
 	ctx := context.Background()
 	return s.storage.UploadFile(ctx, objectKey, file)
 }
+
+func (s *Server) CreateFile(ctx context.Context, file *File) error {
+	fileID, err := s.dB.CreateFile(ctx, database.CreateFileParams{CollectionID: file.CollectionID, UserID: file.UserID, FileName: file.Filename, FilePath: file.filepath})
+	if err != nil {
+		return fmt.Errorf("error on creating file in DB: %v", err)
+	}
+	file.ID = fileID
+	return nil
+}
+
+func (s *Server) GetFilesForCollection(ctx context.Context, collectionID uuid.UUID, userID uuid.UUID) ([]File, error) {
+	var files []File
+	dbFiles, err := s.dB.GetFilesForCollection(ctx, database.GetFilesForCollectionParams{CollectionID: collectionID, UserID: userID})
+	if err != nil {
+		return files, fmt.Errorf("error on gettig files from DB: %v", err)
+	}
+	for i := range dbFiles {
+		var file File
+		file.Filename = dbFiles[i].FileName
+		file.CollectionID = dbFiles[i].CollectionID
+		file.UserID = dbFiles[i].UserID
+		file.ID = dbFiles[i].ID
+		files = append(files, file)
+	}
+	return files, nil
+}

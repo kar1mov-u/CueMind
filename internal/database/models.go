@@ -5,6 +5,7 @@
 package database
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +25,16 @@ type Collection struct {
 	UpdatedAt time.Time
 	Name      string
 	UserID    uuid.UUID
+}
+
+type File struct {
+	ID           uuid.UUID
+	CollectionID uuid.UUID
+	UserID       uuid.UUID
+	FileName     string
+	FilePath     string
+	UploadedAt   time.Time
+	Processed    sql.NullBool
 }
 
 type User struct {

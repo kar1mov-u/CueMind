@@ -34,3 +34,15 @@ type User struct {
 func (u *User) Password() string {
 	return u.password
 }
+
+type File struct {
+	ID           uuid.UUID `json:"id"`
+	Filename     string    `json:"filename"`
+	CollectionID uuid.UUID `json:"collection_id"`
+	UserID       uuid.UUID `json:"user_id"`
+	filepath     string
+}
+
+func (f *File) SetFilepath(path string) {
+	f.filepath = path
+}
