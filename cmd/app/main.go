@@ -40,6 +40,14 @@ func main() {
 		log.Fatalf("error on creating qeueu: %v", err)
 	}
 
+	//create worker
+	workerCfg, err := workerqueue.NewWorkerConf(dbCon, llm, storage, rabbitmqURL)
+	if err != nil {
+		log.Fatalf("cannot crete workers: %v", err)
+	}
+	workerqueue.StartWorkers(*workerCfg, 5)
+	log.Println("Workers are started")
+
 	cfg := api.Config{Server: server, JWTKey: jwtKey, Queue: queue}
 	log.Println("listening on 8000")
 	http.ListenAndServe(":8000", cfg.CreateEndpoints())
