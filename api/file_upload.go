@@ -2,9 +2,14 @@ package api
 
 import (
 	"CueMind/internal/server"
+	queue "CueMind/internal/worker-queue"
+	"log"
+
 	"fmt"
 	"net/http"
 	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +27,10 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//parse the data
-	r.ParseMultipartForm(10 << 20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		RespondWithErr(w, 400, "unable to parse form")
+		return
+	}
 
 	//Get File
 	rFile, handler, err := r.FormFile("file")
@@ -33,7 +41,8 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 	defer rFile.Close()
 
 	//Sanitize filename
-	filename := filepath.Base(handler.Filename)
+	uuid := uuid.New()
+	filename := fmt.Sprintf("%s-%s", uuid.String(), filepath.Base(handler.Filename))
 
 	//upload it to the s3
 	err = cfg.Server.UploadFile(rFile, filename)
@@ -41,12 +50,12 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 		RespondWithErr(w, 500, fmt.Sprintf("cannot upload to storage : %v", err))
 		return
 	}
+
 	file := server.File{
 		Filename:     filename,
 		CollectionID: collectionId,
 		UserID:       userId,
 	}
-
 	file_path := createPath(filename)
 	file.SetFilepath(file_path)
 
@@ -59,21 +68,17 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//send it to the queue
+	queueMsg := queue.Message{
+		UserID:       userId,
+		CollectionID: collectionId,
+		FilePath:     file_path,
+	}
 
-	//create os file
-	// osFile, err := os.Create("./tmp/" + filename)
-	// if err != nil {
-	// 	RespondWithErr(w, 500, "error on creating file")
-	// 	return
-	// }
-	// defer osFile.Close()
-
-	// //copy file
-	// _, err = io.Copy(osFile, rFile)
-	// if err != nil {
-	// 	RespondWithErr(w, 500, "error on copying file")
-	// 	return
-	// }
+	err = cfg.Queue.PublishTask(queueMsg)
+	if err != nil {
+		log.Println(err)
+		RespondWithErr(w, 500, "cannot publish to queue")
+	}
 
 	//send file to the worker
 

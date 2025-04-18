@@ -11,6 +11,7 @@ import (
 
 	"CueMind/internal/database"
 	"CueMind/internal/server"
+	queue "CueMind/internal/worker-queue"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -20,6 +21,7 @@ import (
 )
 
 type Config struct {
+	Queue  *queue.Queue
 	Server *server.Server
 	JWTKey string
 }
