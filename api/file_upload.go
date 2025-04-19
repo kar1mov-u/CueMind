@@ -71,7 +71,7 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 	queueMsg := queue.Message{
 		UserID:       userId,
 		CollectionID: collectionId,
-		FilePath:     file_path,
+		FileKey:      filename,
 	}
 
 	err = cfg.Queue.PublishTask(queueMsg)

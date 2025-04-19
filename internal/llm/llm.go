@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -60,20 +61,13 @@ func CreateClient(key string) (*genai.Client, error) {
 	return client, nil
 }
 
-func (s *LLMService) generateCardsFromFile(ctx context.Context, filename string) {
-	//get the file
-	file, err := getFile(filename)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer file.Close()
+func (s *LLMService) GenerateCardsFromFile(ctx context.Context, file io.Reader) (*FlashCardResponse, error) {
 
 	//Upload to Server
 	sFile, err := s.client.UploadFile(ctx, "", file, nil)
 	if err != nil {
 		log.Println(err)
-		return
+		return nil, err
 	}
 	defer s.client.DeleteFile(ctx, sFile.Name)
 
@@ -81,14 +75,14 @@ func (s *LLMService) generateCardsFromFile(ctx context.Context, filename string)
 	resp, err := s.model.GenerateContent(ctx, genai.FileData{URI: sFile.URI}, genai.Text(cueCardPrompt))
 	if err != nil {
 		log.Println(err)
-		return
+		return nil, err
 	}
 
 	//polish response
 	polishedResp, err := formatLLMResponse((resp.Candidates[0].Content.Parts[0]))
 	if err != nil {
 		log.Println(err)
-		return
+		return nil, err
 	}
 
 	//format to Json objects
@@ -99,6 +93,8 @@ func (s *LLMService) generateCardsFromFile(ctx context.Context, filename string)
 	for _, card := range flashCards.Cards[:5] {
 		fmt.Println(card)
 	}
+
+	return flashCards, nil
 	//save into DB
 
 }

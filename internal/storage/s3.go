@@ -2,13 +2,16 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type Storage struct {
@@ -53,6 +56,25 @@ func (s *Storage) UploadFile(ctx context.Context, key string, body io.Reader) er
 		return fmt.Errorf("object exists waiter failed for %s: %w", key, err)
 	}
 	return nil
+}
+
+func (s *Storage) GetFile(ctx context.Context, key string) (io.ReadCloser, error) {
+	result, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var noKey *types.NoSuchKey
+		if errors.As(err, &noKey) {
+			log.Printf("Can't get Object %s from bucket %s . No such key exists.\n", key, s.bucketName)
+			err = noKey
+		} else {
+			log.Printf("Couldn't get object %v:%v. Here's why: %v\n", s.bucketName, key, err)
+		}
+		return nil, err
+	}
+
+	return result.Body, nil
 }
 
 // func (s *Storage) ListFiles()

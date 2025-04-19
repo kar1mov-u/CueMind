@@ -59,7 +59,7 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 	//card endpoints
 }
 
-func DBConnect(dbConnString string) *database.Queries {
+func DBConnect(dbConnString string) (*database.Queries, *sql.DB) {
 
 	conn, err := sql.Open("postgres", dbConnString)
 	if err != nil {
@@ -70,7 +70,7 @@ func DBConnect(dbConnString string) *database.Queries {
 		log.Fatalf("Failed to Pinging DB")
 	}
 	queries := database.New(conn)
-	return queries
+	return queries, conn
 }
 
 func (cfg *Config) CreateCollection(w http.ResponseWriter, r *http.Request) {

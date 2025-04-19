@@ -20,7 +20,7 @@ func main() {
 	llmKey := os.Getenv("LLM_KEY")
 	bucketName := os.Getenv("BUCKET_NAME")
 	rabbitmqURL := os.Getenv("RABBIT_MQ_URL")
-	dbCon := api.DBConnect(dbUrl)
+	dbCon, sqlCon := api.DBConnect(dbUrl)
 
 	llmClient, err := llm.CreateClient(llmKey)
 	if err != nil {
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	//create worker
-	workerCfg, err := workerqueue.NewWorkerConf(dbCon, llm, storage, rabbitmqURL)
+	workerCfg, err := workerqueue.NewWorkerConf(sqlCon, dbCon, llm, storage, rabbitmqURL)
 	if err != nil {
 		log.Fatalf("cannot crete workers: %v", err)
 	}
