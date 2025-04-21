@@ -15,8 +15,9 @@ import (
 )
 
 type Storage struct {
-	s3Client   *s3.Client
-	bucketName string
+	s3Client        *s3.Client
+	bucketName      string
+	s3PresignClient *s3.PresignClient
 }
 
 func New(bucketName string) *Storage {
@@ -24,7 +25,9 @@ func New(bucketName string) *Storage {
 	if err != nil {
 		log.Fatalf("Failure on Creating Storage: %v", err)
 	}
-	return &Storage{s3Client: s3Client, bucketName: bucketName}
+
+	presignedClient := s3.NewPresignClient(s3Client)
+	return &Storage{s3Client: s3Client, bucketName: bucketName, s3PresignClient: presignedClient}
 }
 
 func newS3Client() (*s3.Client, error) {
@@ -75,6 +78,19 @@ func (s *Storage) GetFile(ctx context.Context, key string) (io.ReadCloser, error
 	}
 
 	return result.Body, nil
+}
+
+func (s *Storage) GeneratePresignedUrl(ctx context.Context, key string, lifetime int) (string, error) {
+	res, err := s.s3PresignClient.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(key),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = time.Duration(lifetime * int(time.Minute))
+	})
+	if err != nil {
+		return "", fmt.Errorf("Error on creating PresignedURL: %v", err)
+	}
+	return res.URL, nil
 }
 
 // func (s *Storage) ListFiles()

@@ -128,8 +128,16 @@ func (s *Server) UploadFile(file io.Reader, objectKey string) error {
 	return s.storage.UploadFile(ctx, objectKey, file)
 }
 
+func (s *Server) GeneratePresignUrl(ctx context.Context, objectKey string) (string, error) {
+	url, err := s.storage.GeneratePresignedUrl(ctx, objectKey, 5)
+	if err != nil {
+		return "", err
+	}
+	return url, nil
+}
+
 func (s *Server) CreateFile(ctx context.Context, file *File) error {
-	fileID, err := s.dB.CreateFile(ctx, database.CreateFileParams{CollectionID: file.CollectionID, UserID: file.UserID, FileName: file.Filename, FilePath: file.filepath})
+	fileID, err := s.dB.CreateFile(ctx, database.CreateFileParams{CollectionID: file.CollectionID, UserID: file.UserID, FileName: file.Filename, FileKey: file.FileKey})
 	if err != nil {
 		return fmt.Errorf("error on creating file in DB: %v", err)
 	}

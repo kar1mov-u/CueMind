@@ -13,7 +13,7 @@ import (
 
 const createFile = `-- name: CreateFile :one
 INSERT INTO files(
-    collection_id, user_id, file_name, file_path
+    collection_id, user_id, file_name, file_key
 ) VALUES (
     $1, $2, $3, $4
 )
@@ -24,7 +24,7 @@ type CreateFileParams struct {
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
 	FileName     string
-	FilePath     string
+	FileKey      string
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (uuid.UUID, error) {
@@ -32,7 +32,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (uuid.UU
 		arg.CollectionID,
 		arg.UserID,
 		arg.FileName,
-		arg.FilePath,
+		arg.FileKey,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -40,7 +40,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (uuid.UU
 }
 
 const getFilesForCollection = `-- name: GetFilesForCollection :many
-SELECT id, collection_id, user_id, file_name, file_path, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
+SELECT id, collection_id, user_id, file_name, file_key, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
 `
 
 type GetFilesForCollectionParams struct {
@@ -62,7 +62,7 @@ func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForColl
 			&i.CollectionID,
 			&i.UserID,
 			&i.FileName,
-			&i.FilePath,
+			&i.FileKey,
 			&i.UploadedAt,
 			&i.Processed,
 		); err != nil {

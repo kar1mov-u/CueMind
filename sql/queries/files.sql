@@ -1,6 +1,6 @@
 -- name: CreateFile :one
 INSERT INTO files(
-    collection_id, user_id, file_name, file_path
+    collection_id, user_id, file_name, file_key
 ) VALUES (
     $1, $2, $3, $4
 )

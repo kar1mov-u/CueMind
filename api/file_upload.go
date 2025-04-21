@@ -3,7 +3,9 @@ package api
 import (
 	"CueMind/internal/server"
 	queue "CueMind/internal/worker-queue"
+	"crypto/sha256"
 	"log"
+	"time"
 
 	"fmt"
 	"net/http"
@@ -56,8 +58,8 @@ func (cfg *Config) UploadFile(w http.ResponseWriter, r *http.Request) {
 		CollectionID: collectionId,
 		UserID:       userId,
 	}
-	file_path := createPath(filename)
-	file.SetFilepath(file_path)
+	// file_path := createPath(filename)
+	// file.SetFilepath(file_path)
 
 	//create entry in the DB
 	err = cfg.Server.CreateFile(r.Context(), &file)
@@ -108,4 +110,36 @@ func (cfg *Config) GetFilesForCollection(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	RespondWithJson(w, 200, files)
+}
+
+func (cfg *Config) GeneratePresignedUrl(w http.ResponseWriter, r *http.Request) {
+	collectionID, err := getIdFromPath(r, "collectionID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	objectKey := GenerateObjectKey(collectionID, userID)
+	presignURL, err := cfg.Server.GeneratePresignUrl(r.Context(), objectKey)
+	if err != nil {
+		RespondWithErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondWithJson(w, 200, map[string]string{"presignedurl": presignURL})
+}
+
+func GenerateObjectKey(u1, u2 uuid.UUID) string {
+	ts := time.Now().UTC().Format(time.RFC3339Nano)
+
+	payload := u1.String() + u2.String() + ts
+
+	sum := sha256.Sum256([]byte(payload))
+
+	return string(sum[:])
 }

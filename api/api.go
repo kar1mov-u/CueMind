@@ -40,6 +40,7 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 			r.Get("/", cfg.ListCollections)
 
 			r.Route("/{collectionID}", func(r chi.Router) {
+				r.Get("/presigUrl", cfg.GeneratePresignedUrl)
 				r.Post("/upload", cfg.UploadFile)
 				r.Get("/", cfg.GetCollection)
 				r.Get("/{cardID}", cfg.GetCard)

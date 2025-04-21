@@ -40,9 +40,5 @@ type File struct {
 	Filename     string    `json:"filename"`
 	CollectionID uuid.UUID `json:"collection_id"`
 	UserID       uuid.UUID `json:"user_id"`
-	filepath     string
-}
-
-func (f *File) SetFilepath(path string) {
-	f.filepath = path
+	FileKey      string    `json:"file_key"`
 }
