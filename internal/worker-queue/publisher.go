@@ -3,6 +3,7 @@ package workerqueue
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -20,12 +21,12 @@ type Queue struct {
 	conn *amqp.Connection
 }
 
-func New(url string) (*Queue, error) {
+func New(url string) *Queue {
 	conn, err := createConnection(url)
 	if err != nil {
-		return nil, err
+		log.Fatalf("ERROR | Cannot Start RabbitMQ :%v", err)
 	}
-	return &Queue{conn: conn}, nil
+	return &Queue{conn: conn}
 }
 
 func createConnection(url string) (*amqp.Connection, error) {

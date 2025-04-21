@@ -22,12 +22,12 @@ type WorkerConfig struct {
 	queue   *amqp091.Connection
 }
 
-func NewWorkerConf(sql *sql.DB, db *database.Queries, llm *llm.LLMService, str *storage.Storage, queueUrl string) (*WorkerConfig, error) {
+func NewWorkerConf(sql *sql.DB, db *database.Queries, llm *llm.LLMService, str *storage.Storage, queueUrl string) *WorkerConfig {
 	conn, err := amqp091.Dial(queueUrl)
 	if err != nil {
-		return nil, err
+		log.Fatalf("ERROR | Cannot start WorkerConf")
 	}
-	return &WorkerConfig{db: db, llm: llm, storage: str, queue: conn, sql: sql}, nil
+	return &WorkerConfig{db: db, llm: llm, storage: str, queue: conn, sql: sql}
 }
 
 func StartWorkers(cfg WorkerConfig, n int) {
@@ -88,7 +88,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 	}
 
 	for msg := range msgs {
-		log.Printf("Worker %d| Msg body: %v", id, string(msg.Body))
+		log.Printf("Worker %d processing job", id)
+
 		var messageData Message
 		err := json.Unmarshal(msg.Body, &messageData)
 		if err != nil {
@@ -123,6 +124,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		}
 
 		msg.Ack(true)
+
+		log.Printf("Worker %d finished job", id)
 
 	}
 	return nil

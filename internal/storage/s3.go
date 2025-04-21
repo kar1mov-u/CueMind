@@ -19,12 +19,12 @@ type Storage struct {
 	bucketName string
 }
 
-func NewStorage(bucketName string) (*Storage, error) {
+func New(bucketName string) *Storage {
 	s3Client, err := newS3Client()
 	if err != nil {
-		return nil, err
+		log.Fatalf("Failure on Creating Storage: %v", err)
 	}
-	return &Storage{s3Client: s3Client, bucketName: bucketName}, nil
+	return &Storage{s3Client: s3Client, bucketName: bucketName}
 }
 
 func newS3Client() (*s3.Client, error) {

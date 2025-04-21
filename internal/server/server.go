@@ -2,7 +2,6 @@ package server
 
 import (
 	"CueMind/internal/database"
-	"CueMind/internal/llm"
 	"CueMind/internal/storage"
 	"context"
 	"fmt"
@@ -12,13 +11,12 @@ import (
 )
 
 type Server struct {
-	lLM     *llm.LLMService
 	dB      *database.Queries
 	storage *storage.Storage
 }
 
-func NewServer(llm *llm.LLMService, db *database.Queries, storage *storage.Storage) *Server {
-	return &Server{lLM: llm, dB: db, storage: storage}
+func New(db *database.Queries, storage *storage.Storage) *Server {
+	return &Server{dB: db, storage: storage}
 }
 
 func (s *Server) CraeteUser(ctx context.Context, regData RegisterData) (*User, error) {

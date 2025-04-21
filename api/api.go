@@ -52,11 +52,6 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 
 	return router
 
-	//user endpoint
-
-	//collection endpoints
-
-	//card endpoints
 }
 
 func DBConnect(dbConnString string) (*database.Queries, *sql.DB) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
@@ -43,22 +42,19 @@ type LLMService struct {
 	model  *genai.GenerativeModel
 }
 
-func NewLLMService(client *genai.Client) *LLMService {
+func New(key string) *LLMService {
+	ctx := context.TODO()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(key))
+	if err != nil {
+		log.Fatalf("Error on creating AI client :%v", err)
+	}
+
 	return &LLMService{model: CreateModel(client), client: client}
 
 }
 func CreateModel(client *genai.Client) *genai.GenerativeModel {
 	model := client.GenerativeModel("gemini-1.5-flash")
 	return model
-}
-
-func CreateClient(key string) (*genai.Client, error) {
-	ctx := context.TODO()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(key))
-	if err != nil {
-		return nil, fmt.Errorf("error on creating AI client :%v", err)
-	}
-	return client, nil
 }
 
 func (s *LLMService) GenerateCardsFromFile(ctx context.Context, file io.Reader) (*FlashCardResponse, error) {
@@ -129,12 +125,4 @@ func formatLLMResponse(resp genai.Part) (string, error) {
 	text = strings.TrimSuffix(text, "```")
 	text = strings.TrimSpace(text)
 	return text, nil
-}
-
-func getFile(filename string) (*os.File, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("error on getting file: %v", err)
-	}
-	return file, nil
 }
