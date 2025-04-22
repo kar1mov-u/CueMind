@@ -86,12 +86,7 @@ func (s *LLMService) GenerateCardsFromFile(ctx context.Context, file io.Reader) 
 	if err != nil {
 		log.Printf("error on converting to structs: %v \n", err)
 	}
-	for _, card := range flashCards.Cards[:5] {
-		fmt.Println(card)
-	}
-
 	return flashCards, nil
-	//save into DB
 
 }
 

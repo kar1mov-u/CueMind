@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rabbitmq/amqp091-go"
@@ -90,6 +91,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 	for msg := range msgs {
 		log.Printf("Worker %d processing job", id)
 
+		start := time.Now()
+
 		var messageData Message
 		err := json.Unmarshal(msg.Body, &messageData)
 		if err != nil {
@@ -119,13 +122,25 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		//TO-DO : later implement batch insert
 		err = insertCardsToDB(flashcards.Cards, messageData.CollectionID, cfg)
 		if err != nil {
-			log.Printf("ERROR : Worker cannot Insert cards to DB")
+			log.Printf("ERROR : Worker cannot Insert cards to DB: %v \n", err)
+			continue
+		}
+
+		fileID, err := uuid.Parse(messageData.FileKey)
+		if err != nil {
+			log.Printf("ERROR: Worker cannot Parse file ID :%v \n", err)
+			continue
+		}
+		err = cfg.db.Processed(ctx, database.ProcessedParams{ID: fileID, Processed: true})
+		if err != nil {
+			log.Printf("ERROR: Worker cannot update processed status in DB : %v \n", err)
 			continue
 		}
 
 		msg.Ack(true)
 
-		log.Printf("Worker %d finished job", id)
+		elapsed := time.Since(start)
+		log.Printf("Worker %d finished job. Elapsed time: %s\n", id, elapsed)
 
 	}
 	return nil

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import Collections from './Collections';
+import CollectionDetail from './CollectionDetail';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -24,6 +25,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/collections" element={<Collections token={token} onLogout={handleLogout} />} />
+        <Route path="/collections/:collectionId" element={<CollectionDetail token={token} onLogout={handleLogout} />} />
         <Route path="*" element={<Navigate to="/collections" replace />} />
       </Routes>
     </Router>

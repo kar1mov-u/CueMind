@@ -14,7 +14,7 @@ const ExchangeName = "main"
 type Message struct {
 	UserID       uuid.UUID `json:"userID"`
 	CollectionID uuid.UUID `json:"collectionID"`
-	FileKey      string    `json:"filePath"`
+	FileKey      string    `json:"file_key"`
 }
 
 type Queue struct {

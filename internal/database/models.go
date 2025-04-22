@@ -31,10 +31,9 @@ type File struct {
 	ID           uuid.UUID
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
-	FileName     string
-	FileKey      string
+	FileName     sql.NullString
 	UploadedAt   time.Time
-	Processed    sql.NullBool
+	Processed    bool
 }
 
 type User struct {

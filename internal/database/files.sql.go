@@ -7,40 +7,65 @@ package database
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
 
-const createFile = `-- name: CreateFile :one
+const addFileName = `-- name: AddFileName :exec
+UPDATE files SET file_name=$1 WHERE id=$2 and collection_id=$3 and user_id=$4
+`
+
+type AddFileNameParams struct {
+	FileName     sql.NullString
+	ID           uuid.UUID
+	CollectionID uuid.UUID
+	UserID       uuid.UUID
+}
+
+func (q *Queries) AddFileName(ctx context.Context, arg AddFileNameParams) error {
+	_, err := q.db.ExecContext(ctx, addFileName,
+		arg.FileName,
+		arg.ID,
+		arg.CollectionID,
+		arg.UserID,
+	)
+	return err
+}
+
+const craeteFileEntry = `-- name: CraeteFileEntry :one
 INSERT INTO files(
-    collection_id, user_id, file_name, file_key
+    collection_id, user_id
 ) VALUES (
-    $1, $2, $3, $4
-)
+    $1, $2
+) 
 RETURNING id
 `
 
-type CreateFileParams struct {
+type CraeteFileEntryParams struct {
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
-	FileName     string
-	FileKey      string
 }
 
-func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, createFile,
-		arg.CollectionID,
-		arg.UserID,
-		arg.FileName,
-		arg.FileKey,
-	)
+func (q *Queries) CraeteFileEntry(ctx context.Context, arg CraeteFileEntryParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, craeteFileEntry, arg.CollectionID, arg.UserID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
+const deleteFile = `-- name: DeleteFile :exec
+DELETE FROM files WHERE id=$1
+`
+
+func (q *Queries) DeleteFile(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteFile, id)
+	return err
+}
+
 const getFilesForCollection = `-- name: GetFilesForCollection :many
-SELECT id, collection_id, user_id, file_name, file_key, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
+
+SELECT id, collection_id, user_id, file_name, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
 `
 
 type GetFilesForCollectionParams struct {
@@ -48,6 +73,17 @@ type GetFilesForCollectionParams struct {
 	UserID       uuid.UUID
 }
 
+// -- name: CreateFile :one
+// INSERT INTO files(
+//
+//	collection_id, user_id, file_name
+//
+// ) VALUES (
+//
+//	$1, $2, $3, $4
+//
+// )
+// RETURNING id;
 func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForCollectionParams) ([]File, error) {
 	rows, err := q.db.QueryContext(ctx, getFilesForCollection, arg.CollectionID, arg.UserID)
 	if err != nil {
@@ -62,7 +98,6 @@ func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForColl
 			&i.CollectionID,
 			&i.UserID,
 			&i.FileName,
-			&i.FileKey,
 			&i.UploadedAt,
 			&i.Processed,
 		); err != nil {
@@ -77,4 +112,29 @@ func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForColl
 		return nil, err
 	}
 	return items, nil
+}
+
+const processed = `-- name: Processed :exec
+UPDATE files SET processed = $1 WHERE id = $2
+`
+
+type ProcessedParams struct {
+	Processed bool
+	ID        uuid.UUID
+}
+
+func (q *Queries) Processed(ctx context.Context, arg ProcessedParams) error {
+	_, err := q.db.ExecContext(ctx, processed, arg.Processed, arg.ID)
+	return err
+}
+
+const processedCheck = `-- name: ProcessedCheck :one
+SELECT processed FROM files WHERE id = $1
+`
+
+func (q *Queries) ProcessedCheck(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, processedCheck, id)
+	var processed bool
+	err := row.Scan(&processed)
+	return processed, err
 }

@@ -32,7 +32,6 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 	router.Route("/api", func(router chi.Router) {
 		router.Post("/users/register", cfg.RegisterHandler)
 		router.Post("/users/login", cfg.LoginHandler)
-		// router.Post("/upload", cfg.UploadFile)
 
 		router.Route("/collections", func(r chi.Router) {
 			r.Use(JWTMiddleware(cfg.JWTKey))
@@ -41,7 +40,7 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 
 			r.Route("/{collectionID}", func(r chi.Router) {
 				r.Get("/presigUrl", cfg.GeneratePresignedUrl)
-				r.Post("/upload", cfg.UploadFile)
+				r.Post("/verifyUpload", cfg.VerifyUpload)
 				r.Get("/", cfg.GetCollection)
 				r.Get("/{cardID}", cfg.GetCard)
 				r.Post("/", cfg.CreateCard)

@@ -4,6 +4,7 @@ import (
 	"CueMind/internal/database"
 	"CueMind/internal/storage"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 
@@ -136,13 +137,37 @@ func (s *Server) GeneratePresignUrl(ctx context.Context, objectKey string) (stri
 	return url, nil
 }
 
-func (s *Server) CreateFile(ctx context.Context, file *File) error {
-	fileID, err := s.dB.CreateFile(ctx, database.CreateFileParams{CollectionID: file.CollectionID, UserID: file.UserID, FileName: file.Filename, FileKey: file.FileKey})
+func (s *Server) DeleteFile(ctx context.Context, id uuid.UUID) error {
+	err := s.dB.DeleteFile(ctx, id)
 	if err != nil {
-		return fmt.Errorf("error on creating file in DB: %v", err)
+		return fmt.Errorf("Error : cannot delete file :%v", err)
+	}
+	return nil
+}
+
+func (s *Server) AddFileName(ctx context.Context, file File) error {
+	err := s.dB.AddFileName(ctx, database.AddFileNameParams{FileName: sql.NullString{String: file.Filename, Valid: true}, CollectionID: file.CollectionID, UserID: file.UserID, ID: file.ID})
+	if err != nil {
+		return fmt.Errorf("error on deleting file :%v", err)
+	}
+	return nil
+}
+
+func (s *Server) CreateFileEntry(ctx context.Context, file *File) error {
+	fileID, err := s.dB.CraeteFileEntry(ctx, database.CraeteFileEntryParams{CollectionID: file.CollectionID, UserID: file.UserID})
+	if err != nil {
+		return fmt.Errorf("Error on creting file entry in DB : %v", err)
 	}
 	file.ID = fileID
 	return nil
+}
+
+func (s *Server) Processed(ctx context.Context, id uuid.UUID) (bool, error) {
+	val, err := s.dB.ProcessedCheck(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return val, nil
 }
 
 func (s *Server) GetFilesForCollection(ctx context.Context, collectionID uuid.UUID, userID uuid.UUID) ([]File, error) {
@@ -153,7 +178,7 @@ func (s *Server) GetFilesForCollection(ctx context.Context, collectionID uuid.UU
 	}
 	for i := range dbFiles {
 		var file File
-		file.Filename = dbFiles[i].FileName
+		file.Filename = dbFiles[i].FileName.String
 		file.CollectionID = dbFiles[i].CollectionID
 		file.UserID = dbFiles[i].UserID
 		file.ID = dbFiles[i].ID

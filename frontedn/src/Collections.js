@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function Collections({ token, onLogout }) {
   const [collections, setCollections] = useState([]);
-  const [selectedCollection, setSelectedCollection] = useState(null);
-  const [cards, setCards] = useState([]);
   const [error, setError] = useState(null);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchCollections();
@@ -26,72 +27,81 @@ function Collections({ token, onLogout }) {
       }
       const data = await response.json();
       setCollections(data);
-      if (data.length > 0) {
-        selectCollection(data[0].id);
-      }
     } catch (err) {
       setError('Network error');
     }
   };
 
-  const selectCollection = async (collectionId) => {
-    setSelectedCollection(collectionId);
+  const handleCollectionClick = (collectionId) => {
+    navigate(`/collections/${collectionId}`);
+  };
+
+  const handleCreateCollection = async () => {
+    if (!newCollectionName.trim()) {
+      setError('Collection name cannot be empty');
+      return;
+    }
     setError(null);
     try {
-      const response = await fetch(`/api/collections/${collectionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetch('/api/collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newCollectionName }),
       });
       if (!response.ok) {
         if (response.status === 401) {
           onLogout();
         }
         const data = await response.json();
-        setError(data.error || 'Failed to fetch cards');
+        setError(data.error || 'Failed to create collection');
         return;
       }
-      const data = await response.json();
-      setCards(data.cards || []);
+      setNewCollectionName('');
+      fetchCollections();
     } catch (err) {
       setError('Network error');
     }
   };
 
   return (
-    <div style={{ display: 'flex', maxWidth: 900, margin: 'auto', padding: 20 }}>
-      <div style={{ width: 250, marginRight: 20 }}>
-        <h3>Your Collections</h3>
-        {error && <div style={{ color: 'red' }}>{error}</div>}
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {collections.map((col) => (
-            <li
-              key={col.id}
-              onClick={() => selectCollection(col.id)}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                backgroundColor: selectedCollection === col.id ? '#ddd' : 'transparent',
-                borderRadius: 4,
-                marginBottom: 4,
-              }}
-            >
-              {col.name}
-            </li>
-          ))}
-        </ul>
-        <button onClick={onLogout} style={{ marginTop: 20 }}>Logout</button>
+    <div style={{ maxWidth: 600, margin: 'auto', padding: 20 }}>
+      <h2>Your Collections</h2>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      <div style={{ marginBottom: 20 }}>
+        <input
+          type="text"
+          placeholder="New collection name"
+          value={newCollectionName}
+          onChange={(e) => setNewCollectionName(e.target.value)}
+          style={{ padding: 8, width: '70%', marginRight: 10 }}
+        />
+        <button onClick={handleCreateCollection}>Create</button>
       </div>
-      <div style={{ flex: 1 }}>
-        <h3>Cards</h3>
-        {cards.length === 0 && <p>No cards in this collection.</p>}
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {cards.map((card) => (
-            <li key={card.id} style={{ marginBottom: 10, padding: 10, border: '1px solid #ccc', borderRadius: 4 }}>
-              <div><strong>Front:</strong> {card.front}</div>
-              <div><strong>Back:</strong> {card.back}</div>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ul style={{ listStyle: 'none', padding: 0 }}>
+        {collections.map((col) => (
+          <li
+            key={col.id}
+            onClick={() => handleCollectionClick(col.id)}
+            style={{
+              padding: '10px 15px',
+              cursor: 'pointer',
+              backgroundColor: '#f0f0f0',
+              borderRadius: 6,
+              marginBottom: 8,
+              border: '1px solid #ccc',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#ddd'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+          >
+            {col.name}
+          </li>
+        ))}
+      </ul>
+      <button onClick={onLogout} style={{ marginTop: 20 }}>Logout</button>
     </div>
   );
 }
