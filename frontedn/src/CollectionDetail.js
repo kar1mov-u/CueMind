@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 function CollectionDetail({ token, onLogout }) {
@@ -13,10 +13,57 @@ function CollectionDetail({ token, onLogout }) {
   const [uploadSuccess, setUploadSuccess] = useState(null);
   const [presignedUrl, setPresignedUrl] = useState(null);
   const [objectKey, setObjectKey] = useState(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [processingFile, setProcessingFile] = useState(() => {
+    return localStorage.getItem('processingFile') || null;
+  });
+
+  const socketRef = useRef(null);
 
   useEffect(() => {
     fetchCollection();
   }, [collectionId]);
+
+  useEffect(() => {
+    // Restore socket if we re-enter page and a file was processing
+    const savedFile = localStorage.getItem('processingFile');
+    const savedObjectKey = localStorage.getItem('objectKey');
+    if (savedFile && savedObjectKey && !socketRef.current) {
+      const socket = new WebSocket(`ws://localhost:8000/api/ws`);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ fileID: savedObjectKey }));
+      };
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.message) {
+          setStatusMessage(msg.message);
+          setUploadSuccess('File uploaded and cards created!');
+          setProcessingFile(null);
+          localStorage.removeItem('processingFile');
+          localStorage.removeItem('objectKey');
+          fetchCollection();
+          socket.close();
+          socketRef.current = null;
+        }
+      };
+      socket.onerror = () => {
+        setUploadError('WebSocket connection failed');
+        setProcessingFile(null);
+        localStorage.removeItem('processingFile');
+        localStorage.removeItem('objectKey');
+        socketRef.current = null;
+      };
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+    };
+  }, []);
 
   const fetchCollection = async () => {
     setError(null);
@@ -25,9 +72,7 @@ function CollectionDetail({ token, onLogout }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
-        if (response.status === 401) {
-          onLogout();
-        }
+        if (response.status === 401) onLogout();
         const data = await response.json();
         setError(data.error || 'Failed to fetch collection');
         return;
@@ -48,86 +93,114 @@ function CollectionDetail({ token, onLogout }) {
     setPresignedUrl(null);
     setObjectKey(null);
 
-    if (!selectedFile) {
-      return;
-    }
+    if (!selectedFile) return;
 
     try {
-      // Request presigned URL immediately on file selection
       const presignResponse = await fetch(`/api/collections/${collectionId}/presigUrl`, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!presignResponse.ok) {
         const data = await presignResponse.json();
         setUploadError(data.error || 'Failed to get presigned URL');
         return;
       }
-
       const data = await presignResponse.json();
       setPresignedUrl(data.url);
-      setObjectKey(data.objectKey);
+      setObjectKey(data.objectkey);
     } catch (err) {
       setUploadError('Network error getting presigned URL');
     }
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      setUploadError('Please select a file to upload.');
-      return;
-    }
-    if (!presignedUrl) {
-      setUploadError('No presigned URL available.');
+    if (!file || !presignedUrl) {
+      setUploadError('Missing file or presigned URL.');
       return;
     }
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(null);
+    setStatusMessage('Creating cards...');
+    setProcessingFile(file.name);
+    localStorage.setItem('processingFile', file.name);
+    localStorage.setItem('objectKey', objectKey);
 
     try {
-      // Upload file to S3 using stored presigned URL
       const putResponse = await fetch(presignedUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type,
+          'Content-Length': file.size.toString(),
         },
         body: file,
       });
-
       if (!putResponse.ok) {
         setUploadError('Failed to upload file to storage');
         setUploading(false);
+        setProcessingFile(null);
+        localStorage.removeItem('processingFile');
+        localStorage.removeItem('objectKey');
         return;
       }
 
-      // Notify backend of successful upload (verifyUpload)
       const verifyResponse = await fetch(`/api/collections/${collectionId}/verifyUpload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fileName: file.name, objectKey }),
+        body: JSON.stringify({ file_name: file.name, object_key: objectKey, error: '', status: 'success' }),
       });
-
       if (!verifyResponse.ok) {
-        const data = await verifyResponse.json();
+        let data;
+        try {
+          data = await verifyResponse.json();
+        } catch {
+          data = { error: 'Unknown error verifying upload' };
+        }
         setUploadError(data.error || 'Failed to verify upload');
         setUploading(false);
+        setProcessingFile(null);
+        localStorage.removeItem('processingFile');
+        localStorage.removeItem('objectKey');
         return;
       }
 
-      setUploadSuccess('File uploaded successfully');
+      const socket = new WebSocket(`ws://localhost:8000/api/ws`);
+      socketRef.current = socket;
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ fileID: objectKey }));
+      };
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.message) {
+          setStatusMessage(msg.message);
+          setUploadSuccess('File uploaded and cards created!');
+          setProcessingFile(null);
+          localStorage.removeItem('processingFile');
+          localStorage.removeItem('objectKey');
+          fetchCollection();
+          socket.close();
+          socketRef.current = null;
+        }
+      };
+      socket.onerror = () => {
+        setUploadError('WebSocket connection failed');
+        setProcessingFile(null);
+        localStorage.removeItem('processingFile');
+        localStorage.removeItem('objectKey');
+        socketRef.current = null;
+      };
+
       setFile(null);
       setPresignedUrl(null);
       setObjectKey(null);
-      fetchCollection(); // Refresh cards/files if needed
     } catch (err) {
-      setUploadError('Network error during upload');
+      setUploadError(`Network error during upload: ${err.message}`);
+      setProcessingFile(null);
+      localStorage.removeItem('processingFile');
+      localStorage.removeItem('objectKey');
     } finally {
       setUploading(false);
     }
@@ -135,6 +208,12 @@ function CollectionDetail({ token, onLogout }) {
 
   return (
     <div style={{ maxWidth: 800, margin: 'auto', padding: 20 }}>
+      {processingFile && (
+        <div style={{ position: 'fixed', top: 10, right: 10, padding: '10px 20px', backgroundColor: '#ffd700', borderRadius: 5 }}>
+          Processing "{processingFile}"...
+        </div>
+      )}
+
       <h2>Collection: {collectionName}</h2>
       <button onClick={onLogout} style={{ marginBottom: 20, marginRight: 10 }}>Logout</button>
       <button onClick={() => navigate('/collections')} style={{ marginBottom: 20 }}>Back to Collections</button>
@@ -158,6 +237,7 @@ function CollectionDetail({ token, onLogout }) {
       </button>
       {uploadError && <div style={{ color: 'red', marginTop: 10 }}>{uploadError}</div>}
       {uploadSuccess && <div style={{ color: 'green', marginTop: 10 }}>{uploadSuccess}</div>}
+      {statusMessage && <div style={{ marginTop: 10 }}>{statusMessage}</div>}
     </div>
   );
 }

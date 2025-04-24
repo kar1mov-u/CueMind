@@ -4,6 +4,7 @@ import (
 	"CueMind/internal/database"
 	"CueMind/internal/llm"
 	"CueMind/internal/storage"
+	"CueMind/internal/ws"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -21,14 +22,15 @@ type WorkerConfig struct {
 	llm     *llm.LLMService
 	storage *storage.Storage
 	queue   *amqp091.Connection
+	hub     *ws.WSConnHub
 }
 
-func NewWorkerConf(sql *sql.DB, db *database.Queries, llm *llm.LLMService, str *storage.Storage, queueUrl string) *WorkerConfig {
+func NewWorkerConf(sql *sql.DB, db *database.Queries, llm *llm.LLMService, str *storage.Storage, queueUrl string, hub *ws.WSConnHub) *WorkerConfig {
 	conn, err := amqp091.Dial(queueUrl)
 	if err != nil {
 		log.Fatalf("ERROR | Cannot start WorkerConf")
 	}
-	return &WorkerConfig{db: db, llm: llm, storage: str, queue: conn, sql: sql}
+	return &WorkerConfig{db: db, llm: llm, storage: str, queue: conn, sql: sql, hub: hub}
 }
 
 func StartWorkers(cfg WorkerConfig, n int) {
@@ -96,7 +98,7 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		var messageData Message
 		err := json.Unmarshal(msg.Body, &messageData)
 		if err != nil {
-			log.Printf("ERROR : Worker cannot Unmarshal Message DATA:%v \n", err)
+			failure(msg, fmt.Errorf("ERROR : Worker cannot Unmarshal Message DATA:%v \n", err))
 			continue
 		}
 
@@ -104,7 +106,7 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		ctx := context.Background()
 		file, err := cfg.storage.GetFile(ctx, messageData.FileKey)
 		if err != nil {
-			log.Printf("Error : Worker cannot GET file from Storage : %v \n", err)
+			failure(msg, fmt.Errorf("Error : Worker cannot GET file from Storage : %v \n", err))
 			continue
 		}
 		defer file.Close()
@@ -113,7 +115,7 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 
 		flashcards, err := cfg.llm.GenerateCardsFromFile(ctx, file)
 		if err != nil {
-			log.Printf("ERROR : Worker cannot Generate LLM Response : %v \n", err)
+			failure(msg, fmt.Errorf("ERROR : Worker cannot Generate LLM Response : %v \n", err))
 			continue
 		}
 
@@ -122,25 +124,29 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		//TO-DO : later implement batch insert
 		err = insertCardsToDB(flashcards.Cards, messageData.CollectionID, cfg)
 		if err != nil {
-			log.Printf("ERROR : Worker cannot Insert cards to DB: %v \n", err)
+			failure(msg, fmt.Errorf("ERROR : Worker cannot Insert cards to DB: %v \n", err))
 			continue
 		}
 
 		fileID, err := uuid.Parse(messageData.FileKey)
 		if err != nil {
-			log.Printf("ERROR: Worker cannot Parse file ID :%v \n", err)
+			failure(msg, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
 			continue
 		}
 		err = cfg.db.Processed(ctx, database.ProcessedParams{ID: fileID, Processed: true})
 		if err != nil {
-			log.Printf("ERROR: Worker cannot update processed status in DB : %v \n", err)
+			failure(msg, fmt.Errorf("ERROR: Worker cannot update processed status in DB : %v \n", err))
 			continue
 		}
 
 		msg.Ack(true)
-
 		elapsed := time.Since(start)
 		log.Printf("Worker %d finished job. Elapsed time: %s\n", id, elapsed)
+
+		err = cfg.hub.Delete(fileID.String(), messageData.FileName)
+		if err != nil {
+			log.Printf("cannot send to the websocket : %v", err)
+		}
 
 	}
 	return nil
@@ -171,4 +177,10 @@ func insertCardsToDB(cards []llm.Card, collectionID uuid.UUID, cfg WorkerConfig)
 	}
 	return tx.Commit()
 
+}
+
+func failure(msg amqp091.Delivery, err error) {
+
+	msg.Nack(false, false)
+	log.Printf("Worker failed to process message: %v", err)
 }

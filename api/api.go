@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"CueMind/internal/database"
 	"CueMind/internal/server"
 	queue "CueMind/internal/worker-queue"
+	"CueMind/internal/ws"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 
 	_ "github.com/lib/pq"
 )
@@ -23,7 +24,15 @@ import (
 type Config struct {
 	Queue  *queue.Queue
 	Server *server.Server
+	Hub    *ws.WSConnHub
 	JWTKey string
+}
+
+// TO-DO  change thin in prod
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func (cfg *Config) CreateEndpoints() http.Handler {
@@ -48,9 +57,49 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 			})
 		})
 
+		router.Get("/ws", cfg.Sock)
+
 	})
 
 	return router
+
+}
+
+type SocketData struct {
+	FileID string `json:"fileID"`
+}
+
+func (cfg *Config) Sock(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("upgrade:", err)
+		return
+	}
+	defer c.Close()
+
+	data := SocketData{}
+	if err = c.ReadJSON(&data); err != nil {
+		log.Println("cannot read socket:", err)
+		return
+	}
+	fileID, err := uuid.Parse(data.FileID)
+	if err != nil {
+		log.Println("Invalid fileID: ", err)
+		return
+	}
+
+	fmt.Println(fileID)
+
+	//save to hub
+	cfg.Hub.Register(fileID.String(), c)
+
+	//keep connection alive
+	for {
+		_, _, err := c.NextReader()
+		if err != nil {
+			break
+		}
+	}
 
 }
 
@@ -212,10 +261,10 @@ func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
 	return id, nil
 }
 
-func createPath(objectKey string) string {
-	bucket := os.Getenv("BUCKET_NAME")
-	region := os.Getenv("AWS_REGION")
+// func createPath(objectKey string) string {
+// 	bucket := os.Getenv("BUCKET_NAME")
+// 	region := os.Getenv("AWS_REGION")
 
-	s := fmt.Sprintf("https://%v.s3.%v.amazonaws.com/%v", bucket, region, objectKey)
-	return s
-}
+// 	s := fmt.Sprintf("https://%v.s3.%v.amazonaws.com/%v", bucket, region, objectKey)
+// 	return s
+// }

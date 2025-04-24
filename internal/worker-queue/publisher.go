@@ -14,6 +14,7 @@ const ExchangeName = "main"
 type Message struct {
 	UserID       uuid.UUID `json:"userID"`
 	CollectionID uuid.UUID `json:"collectionID"`
+	FileName     string    `json:"filename"`
 	FileKey      string    `json:"file_key"`
 }
 
