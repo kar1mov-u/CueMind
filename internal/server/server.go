@@ -12,12 +12,13 @@ import (
 )
 
 type Server struct {
+	rawDB   *sql.DB
 	dB      *database.Queries
 	storage *storage.Storage
 }
 
-func New(db *database.Queries, storage *storage.Storage) *Server {
-	return &Server{dB: db, storage: storage}
+func New(db *database.Queries, storage *storage.Storage, rawSql *sql.DB) *Server {
+	return &Server{dB: db, storage: storage, rawDB: rawSql}
 }
 
 func (s *Server) CraeteUser(ctx context.Context, regData RegisterData) (*User, error) {
@@ -46,9 +47,6 @@ func (s *Server) CreateCollection(ctx context.Context, userId uuid.UUID, collec 
 }
 
 func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId uuid.UUID) (*CollectionFull, error) {
-	// var collectionFull CollectionFull
-	var cards []Card
-
 	dbCollection, err := s.dB.GetCollectionById(ctx, database.GetCollectionByIdParams{ID: collectId, UserID: userId})
 	if err != nil {
 		return nil, fmt.Errorf("error on gettig collection: %v", err)
@@ -58,16 +56,52 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 	if err != nil {
 		return nil, fmt.Errorf("error on getting cards: %v", err)
 	}
+
+	cards := make([]Card, len(dbCards))
+
 	for i := range dbCards {
 		var card Card
 		card.Back = dbCards[i].Back
 		card.Front = dbCards[i].Front
 		card.ID = dbCards[i].ID
-		cards = append(cards, card)
+		cards[i] = card
 	}
 	collection := Collection{Name: dbCollection.Name, ID: dbCollection.ID}
 	return &CollectionFull{Collection: collection, Cards: cards}, nil
 
+}
+
+func (s *Server) DeleteCollection(ctx context.Context, collectionID, userID uuid.UUID) error {
+	//create new transaction
+	tx, err := s.rawDB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	qtx := s.dB.WithTx(tx)
+
+	//perofrm queires
+	err = qtx.DeleteAllCards(ctx, collectionID)
+	if err != nil {
+		// tx.Rollback()
+		return fmt.Errorf("Error on deleteing cards: %v", err)
+	}
+
+	err = qtx.DeleteAllFiles(ctx, database.DeleteAllFilesParams{CollectionID: collectionID, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("Error on deleteing files: %v", err)
+
+	}
+
+	err = qtx.DeleteCollection(ctx, database.DeleteCollectionParams{ID: collectionID, UserID: userID})
+	if err != nil {
+		// tx.Rollback()
+		return fmt.Errorf("Error on deleteing collection: %v", err)
+
+	}
+	return tx.Commit()
 }
 
 func (s *Server) CheckUserOwnership(ctx context.Context, collectionID, userID uuid.UUID) error {
@@ -87,13 +121,13 @@ func (s *Server) ListCollections(ctx context.Context, userID uuid.UUID) ([]Colle
 		return nil, fmt.Errorf("error on listing collections: %v", err)
 	}
 
-	var collections []Collection
+	collections := make([]Collection, len(dbCollections))
 	for i := range dbCollections {
 		var collection Collection
 		collection.ID = dbCollections[i].ID
 		collection.Name = dbCollections[i].Name
 
-		collections = append(collections, collection)
+		collections[i] = collection
 	}
 
 	return collections, nil
@@ -117,6 +151,7 @@ func (s *Server) CreateCard(ctx context.Context, collectionID uuid.UUID, card *C
 }
 
 func (s *Server) DeleteCard(ctx context.Context, cardID, collectionID uuid.UUID) error {
+
 	err := s.dB.DeleteCard(ctx, database.DeleteCardParams{ID: cardID, CollectionID: collectionID})
 	if err != nil {
 		return fmt.Errorf("error on deleting card: %v", err)

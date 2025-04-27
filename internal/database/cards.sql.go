@@ -32,6 +32,15 @@ func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (uuid.UU
 	return id, err
 }
 
+const deleteAllCards = `-- name: DeleteAllCards :exec
+DELETE FROM cards WHERE collection_id=$1
+`
+
+func (q *Queries) DeleteAllCards(ctx context.Context, collectionID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAllCards, collectionID)
+	return err
+}
+
 const deleteCard = `-- name: DeleteCard :exec
 DELETE FROM cards WHERE id=$1 and collection_id=$2
 `

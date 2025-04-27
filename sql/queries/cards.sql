@@ -17,3 +17,6 @@ RETURNING id;
 
 -- name: DeleteCard :exec
 DELETE FROM cards WHERE id=$1 and collection_id=$2;
+
+-- name: DeleteAllCards :exec
+DELETE FROM cards WHERE collection_id=$1;

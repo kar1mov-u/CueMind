@@ -29,3 +29,6 @@ SELECT processed FROM files WHERE id = $1;
 
 -- name: Processed :exec
 UPDATE files SET processed = $1 WHERE id = $2;
+
+-- name: DeleteAllFiles :exec
+DELETE FROM files WHERE collection_id=$1 and user_id=$2;

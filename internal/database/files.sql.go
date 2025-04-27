@@ -54,6 +54,20 @@ func (q *Queries) CraeteFileEntry(ctx context.Context, arg CraeteFileEntryParams
 	return id, err
 }
 
+const deleteAllFiles = `-- name: DeleteAllFiles :exec
+DELETE FROM files WHERE collection_id=$1 and user_id=$2
+`
+
+type DeleteAllFilesParams struct {
+	CollectionID uuid.UUID
+	UserID       uuid.UUID
+}
+
+func (q *Queries) DeleteAllFiles(ctx context.Context, arg DeleteAllFilesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAllFiles, arg.CollectionID, arg.UserID)
+	return err
+}
+
 const deleteFile = `-- name: DeleteFile :exec
 DELETE FROM files WHERE id=$1
 `

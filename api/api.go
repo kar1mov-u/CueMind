@@ -48,11 +48,15 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 			r.Get("/", cfg.ListCollections)
 
 			r.Route("/{collectionID}", func(r chi.Router) {
+				r.Delete("/", cfg.DeleteCollection)
+				r.Get("/", cfg.GetCollection)
+
 				r.Get("/presigUrl", cfg.GeneratePresignedUrl)
 				r.Post("/verifyUpload", cfg.VerifyUpload)
-				r.Get("/", cfg.GetCollection)
+
 				r.Get("/{cardID}", cfg.GetCard)
 				r.Post("/", cfg.CreateCard)
+
 				r.Get("/files", cfg.GetFilesForCollection)
 			})
 		})
@@ -175,6 +179,29 @@ func (cfg *Config) ListCollections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	RespondWithJson(w, 200, collections)
+}
+
+func (cfg *Config) DeleteCollection(w http.ResponseWriter, r *http.Request) {
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	collectionID, err := getIdFromPath(r, "collectionID")
+	if err != nil {
+		RespondWithErr(w, 400, err.Error())
+		return
+	}
+
+	err = cfg.Server.DeleteCollection(r.Context(), collectionID, userID)
+	if err != nil {
+		RespondWithErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	RespondWithJson(w, 204, nil)
+
 }
 
 func (cfg *Config) GetCard(w http.ResponseWriter, r *http.Request) {

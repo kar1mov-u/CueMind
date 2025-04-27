@@ -25,7 +25,7 @@ func main() {
 
 	dbCon, sqlCon := api.DBConnect(dbUrl)
 	storageServer := storage.New(bucketName)
-	server := server.New(dbCon, storageServer)
+	server := server.New(dbCon, storageServer, sqlCon)
 	queue := workerqueue.New(rabbitmqURL)
 	llmServer := llm.New(llmKey)
 	hub := ws.New()
