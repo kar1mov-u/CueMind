@@ -51,13 +51,19 @@ func (cfg *Config) CreateEndpoints() http.Handler {
 				r.Delete("/", cfg.DeleteCollection)
 				r.Get("/", cfg.GetCollection)
 
+				//files
 				r.Get("/presigUrl", cfg.GeneratePresignedUrl)
 				r.Post("/verifyUpload", cfg.VerifyUpload)
-
-				r.Get("/{cardID}", cfg.GetCard)
-				r.Post("/", cfg.CreateCard)
-
 				r.Get("/files", cfg.GetFilesForCollection)
+
+				//cards
+				r.Post("/cards", cfg.CreateCard)
+				r.Route("/cards/{cardID}", func(r chi.Router) {
+					r.Get("/", cfg.GetCard)
+					r.Delete("/", cfg.DeleteCard)
+					r.Put("/", cfg.UpdateCard)
+				})
+
 			})
 		})
 
@@ -269,6 +275,83 @@ func (cfg *Config) CreateCard(w http.ResponseWriter, r *http.Request) {
 	RespondWithJson(w, 200, card)
 }
 
+func (cfg *Config) DeleteCard(w http.ResponseWriter, r *http.Request) {
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	collectionID, err := getIdFromPath(r, "collectionID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	cardID, err := getIdFromPath(r, "cardID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//check user owns the collection
+	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
+	if err != nil {
+		RespondWithErr(w, 403, err.Error())
+		return
+	}
+
+	err = cfg.Server.DeleteCard(context.TODO(), cardID, collectionID)
+	if err != nil {
+		RespondWithErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondWithJson(w, 202, nil)
+}
+
+func (cfg *Config) UpdateCard(w http.ResponseWriter, r *http.Request) {
+	userID, err := getIdFromContext(r.Context(), "userID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	collectionID, err := getIdFromPath(r, "collectionID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	cardID, err := getIdFromPath(r, "cardID")
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//check user owns the collection
+	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
+	if err != nil {
+		RespondWithErr(w, 403, err.Error())
+		return
+	}
+
+	type Data struct {
+		Front string `json:"front"`
+		Back  string `json:"back"`
+	}
+	var data Data
+
+	err = json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		RespondWithErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = cfg.Server.UpdateCard(r.Context(), cardID, data.Front, data.Back)
+	if err != nil {
+		RespondWithErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondWithJson(w, 204, nil)
+
+}
+
 func getIdFromContext(ctx context.Context, key string) (uuid.UUID, error) {
 	idStr := ctx.Value(key).(string)
 	id, err := uuid.Parse(idStr)
@@ -287,11 +370,3 @@ func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
 	}
 	return id, nil
 }
-
-// func createPath(objectKey string) string {
-// 	bucket := os.Getenv("BUCKET_NAME")
-// 	region := os.Getenv("AWS_REGION")
-
-// 	s := fmt.Sprintf("https://%v.s3.%v.amazonaws.com/%v", bucket, region, objectKey)
-// 	return s
-// }

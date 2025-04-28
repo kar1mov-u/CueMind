@@ -20,3 +20,9 @@ DELETE FROM cards WHERE id=$1 and collection_id=$2;
 
 -- name: DeleteAllCards :exec
 DELETE FROM cards WHERE collection_id=$1;
+
+-- name: GetTotalCardCount :one
+SELECT COUNT(*) FROM cards WHERE collection_id= $1;
+
+-- name: UpdateCard :exec
+UPDATE cards SET front=$1, back=$2 WHERE id=$3;

@@ -112,3 +112,29 @@ func (q *Queries) GetCardsFomCollection(ctx context.Context, collectionID uuid.U
 	}
 	return items, nil
 }
+
+const getTotalCardCount = `-- name: GetTotalCardCount :one
+SELECT COUNT(*) FROM cards WHERE collection_id= $1
+`
+
+func (q *Queries) GetTotalCardCount(ctx context.Context, collectionID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalCardCount, collectionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const updateCard = `-- name: UpdateCard :exec
+UPDATE cards SET front=$1, back=$2 WHERE id=$3
+`
+
+type UpdateCardParams struct {
+	Front string
+	Back  string
+	ID    uuid.UUID
+}
+
+func (q *Queries) UpdateCard(ctx context.Context, arg UpdateCardParams) error {
+	_, err := q.db.ExecContext(ctx, updateCard, arg.Front, arg.Back, arg.ID)
+	return err
+}

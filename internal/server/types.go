@@ -5,7 +5,7 @@ import "github.com/google/uuid"
 type Collection struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
-	CardNumbers int       `json:"card_numbers"`
+	CardNumbers int64     `json:"card_numbers"`
 }
 
 type CollectionFull struct {
@@ -41,5 +41,4 @@ type File struct {
 	Filename     string    `json:"filename"`
 	CollectionID uuid.UUID `json:"collection_id"`
 	UserID       uuid.UUID `json:"user_id"`
-	// FileKey      string    `json:"file_key"`
 }

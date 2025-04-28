@@ -47,6 +47,7 @@ func (s *Server) CreateCollection(ctx context.Context, userId uuid.UUID, collec 
 }
 
 func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId uuid.UUID) (*CollectionFull, error) {
+
 	dbCollection, err := s.dB.GetCollectionById(ctx, database.GetCollectionByIdParams{ID: collectId, UserID: userId})
 	if err != nil {
 		return nil, fmt.Errorf("error on gettig collection: %v", err)
@@ -55,6 +56,11 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 	dbCards, err := s.dB.GetCardsFomCollection(ctx, collectId)
 	if err != nil {
 		return nil, fmt.Errorf("error on getting cards: %v", err)
+	}
+
+	count, err := s.dB.GetTotalCardCount(ctx, collectId)
+	if err != nil {
+		return nil, fmt.Errorf("error on counting cards: %v", err)
 	}
 
 	cards := make([]Card, len(dbCards))
@@ -66,7 +72,7 @@ func (s *Server) GetCollection(ctx context.Context, userId uuid.UUID, collectId 
 		card.ID = dbCards[i].ID
 		cards[i] = card
 	}
-	collection := Collection{Name: dbCollection.Name, ID: dbCollection.ID}
+	collection := Collection{Name: dbCollection.Name, ID: dbCollection.ID, CardNumbers: count}
 	return &CollectionFull{Collection: collection, Cards: cards}, nil
 
 }
@@ -159,6 +165,14 @@ func (s *Server) DeleteCard(ctx context.Context, cardID, collectionID uuid.UUID)
 	return nil
 }
 
+func (s *Server) UpdateCard(ctx context.Context, cardID uuid.UUID, front, back string) error {
+	err := s.dB.UpdateCard(ctx, database.UpdateCardParams{ID: cardID, Front: front, Back: back})
+	if err != nil {
+		return fmt.Errorf("error on updating card:%v", err)
+	}
+	return nil
+}
+
 func (s *Server) UploadFile(file io.Reader, objectKey string) error {
 	ctx := context.Background()
 	return s.storage.UploadFile(ctx, objectKey, file)
@@ -206,18 +220,19 @@ func (s *Server) Processed(ctx context.Context, id uuid.UUID) (bool, error) {
 }
 
 func (s *Server) GetFilesForCollection(ctx context.Context, collectionID uuid.UUID, userID uuid.UUID) ([]File, error) {
-	var files []File
 	dbFiles, err := s.dB.GetFilesForCollection(ctx, database.GetFilesForCollectionParams{CollectionID: collectionID, UserID: userID})
 	if err != nil {
-		return files, fmt.Errorf("error on gettig files from DB: %v", err)
+		return nil, fmt.Errorf("error on gettig files from DB: %v", err)
 	}
+	files := make([]File, len(dbFiles))
+
 	for i := range dbFiles {
 		var file File
 		file.Filename = dbFiles[i].FileName.String
 		file.CollectionID = dbFiles[i].CollectionID
 		file.UserID = dbFiles[i].UserID
 		file.ID = dbFiles[i].ID
-		files = append(files, file)
+		files[i] = file
 	}
 	return files, nil
 }

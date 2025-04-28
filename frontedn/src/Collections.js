@@ -66,10 +66,30 @@ function Collections({ token, onLogout }) {
     }
   };
 
+  const handleDeleteCollection = async (collectionId) => {
+    if (!window.confirm('Are you sure you want to delete this collection?')) return;
+    try {
+      const response = await fetch(`/api/collections/${collectionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        if (response.status === 401) onLogout();
+        const data = await response.json();
+        setError(data.error || 'Failed to delete collection');
+        return;
+      }
+      fetchCollections(); // Refresh
+    } catch (err) {
+      setError('Network error');
+    }
+  };
+
   return (
     <div style={{ maxWidth: 600, margin: 'auto', padding: 20 }}>
       <h2>Your Collections</h2>
       {error && <div style={{ color: 'red' }}>{error}</div>}
+
       <div style={{ marginBottom: 20 }}>
         <input
           type="text"
@@ -80,27 +100,41 @@ function Collections({ token, onLogout }) {
         />
         <button onClick={handleCreateCollection}>Create</button>
       </div>
+
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {collections.map((col) => (
           <li
             key={col.id}
-            onClick={() => handleCollectionClick(col.id)}
             style={{
               padding: '10px 15px',
-              cursor: 'pointer',
               backgroundColor: '#f0f0f0',
               borderRadius: 6,
               marginBottom: 8,
               border: '1px solid #ccc',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
               transition: 'background-color 0.2s',
             }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = '#ddd'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f0f0f0'}
           >
-            {col.name}
+            <span
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleCollectionClick(col.id)}
+            >
+              {col.name}
+            </span>
+            <button
+              onClick={() => handleDeleteCollection(col.id)}
+              style={{ marginLeft: 10 }}
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>
+
       <button onClick={onLogout} style={{ marginTop: 20 }}>Logout</button>
     </div>
   );
