@@ -170,7 +170,7 @@ function CollectionDetail({ token, onLogout }) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ file_name: file.name, object_key: objectKey, error: '', status: 'success' }),
+        body: JSON.stringify({ file_name: file.name, object_key: objectKey,format:file.name.split('.').pop().toLowerCase(),   error: '', status: 'success' }),
       });
       if (!verifyResponse.ok) {
         let data;

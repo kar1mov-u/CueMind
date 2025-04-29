@@ -41,4 +41,5 @@ type File struct {
 	Filename     string    `json:"filename"`
 	CollectionID uuid.UUID `json:"collection_id"`
 	UserID       uuid.UUID `json:"user_id"`
+	Format       string    `json:"format"`
 }

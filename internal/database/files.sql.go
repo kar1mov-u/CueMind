@@ -12,20 +12,22 @@ import (
 	"github.com/google/uuid"
 )
 
-const addFileName = `-- name: AddFileName :exec
-UPDATE files SET file_name=$1 WHERE id=$2 and collection_id=$3 and user_id=$4
+const compeleteFileDetails = `-- name: CompeleteFileDetails :exec
+UPDATE files SET file_name=$1 and format =$2 WHERE id=$3 and collection_id=$4 and user_id=$5
 `
 
-type AddFileNameParams struct {
+type CompeleteFileDetailsParams struct {
 	FileName     sql.NullString
+	Format       string
 	ID           uuid.UUID
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
 }
 
-func (q *Queries) AddFileName(ctx context.Context, arg AddFileNameParams) error {
-	_, err := q.db.ExecContext(ctx, addFileName,
+func (q *Queries) CompeleteFileDetails(ctx context.Context, arg CompeleteFileDetailsParams) error {
+	_, err := q.db.ExecContext(ctx, compeleteFileDetails,
 		arg.FileName,
+		arg.Format,
 		arg.ID,
 		arg.CollectionID,
 		arg.UserID,
@@ -78,8 +80,7 @@ func (q *Queries) DeleteFile(ctx context.Context, id uuid.UUID) error {
 }
 
 const getFilesForCollection = `-- name: GetFilesForCollection :many
-
-SELECT id, collection_id, user_id, file_name, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
+SELECT id, collection_id, user_id, file_name, format, uploaded_at, processed FROM files WHERE collection_id=$1 and user_id = $2
 `
 
 type GetFilesForCollectionParams struct {
@@ -87,17 +88,6 @@ type GetFilesForCollectionParams struct {
 	UserID       uuid.UUID
 }
 
-// -- name: CreateFile :one
-// INSERT INTO files(
-//
-//	collection_id, user_id, file_name
-//
-// ) VALUES (
-//
-//	$1, $2, $3, $4
-//
-// )
-// RETURNING id;
 func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForCollectionParams) ([]File, error) {
 	rows, err := q.db.QueryContext(ctx, getFilesForCollection, arg.CollectionID, arg.UserID)
 	if err != nil {
@@ -112,6 +102,7 @@ func (q *Queries) GetFilesForCollection(ctx context.Context, arg GetFilesForColl
 			&i.CollectionID,
 			&i.UserID,
 			&i.FileName,
+			&i.Format,
 			&i.UploadedAt,
 			&i.Processed,
 		); err != nil {

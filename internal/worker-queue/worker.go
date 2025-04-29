@@ -9,7 +9,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -111,6 +115,43 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		}
 		defer file.Close()
 
+		//convert to PDF if its not
+		if messageData.Format != "pdf" {
+			//create non-pdf file in tmp
+			curDir, err := os.Getwd()
+			if err != nil {
+				failure(msg, err)
+				continue
+			}
+			nonPdfFilename := fmt.Sprintf("%v/tmp/non-pdf/%v", curDir, messageData.FileKey)
+			tmpPrevFile, err := os.Create(nonPdfFilename)
+			if err != nil {
+				failure(msg, err)
+				continue
+			}
+			//copy data from storage file to the new file
+			_, err = io.Copy(tmpPrevFile, file)
+			if err != nil {
+				failure(msg, err)
+				continue
+			}
+
+			tmpPrevFile.Close()
+
+			pdfFile, err := convertToPdf(nonPdfFilename, curDir+"/tmp/pdf/")
+			if err != nil {
+				failure(msg, err)
+				continue
+			}
+
+			os.Remove(nonPdfFilename)
+
+			defer pdfFile.Close()
+
+			file = pdfFile
+
+		}
+
 		//Send file to the LLm
 
 		flashcards, err := cfg.llm.GenerateCardsFromFile(ctx, file)
@@ -183,4 +224,35 @@ func failure(msg amqp091.Delivery, err error) {
 
 	msg.Nack(false, false)
 	log.Printf("Worker failed to process message: %v", err)
+}
+
+func convertToPdf(filename string, outputDir string) (*os.File, error) {
+	start := time.Now()
+	cmd := exec.Command("libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outputDir, filename)
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	baseName := filepath.Base(filename)
+	generatedPdf := filepath.Join(outputDir, baseName+".pdf")
+
+	fmt.Println(generatedPdf)
+
+	_, err = os.Stat(generatedPdf)
+	if err != nil {
+		return nil, fmt.Errorf("file have not been created: %v", err)
+	}
+
+	file, err := os.Open(generatedPdf)
+	if err != nil {
+		return nil, fmt.Errorf("error on opening file: %v", err)
+	}
+	err = os.Remove(generatedPdf)
+	if err != nil {
+		return nil, err
+	}
+	elapsed := time.Since(start)
+	fmt.Println("taken time:", elapsed)
+	return file, nil
 }

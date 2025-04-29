@@ -42,6 +42,15 @@ type LLMService struct {
 	model  *genai.GenerativeModel
 }
 
+type Card struct {
+	Front string
+	Back  string
+}
+
+type FlashCardResponse struct {
+	Cards []Card
+}
+
 func New(key string) *LLMService {
 	ctx := context.TODO()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(key))
@@ -88,15 +97,6 @@ func (s *LLMService) GenerateCardsFromFile(ctx context.Context, file io.Reader) 
 	}
 	return flashCards, nil
 
-}
-
-type Card struct {
-	Front string
-	Back  string
-}
-
-type FlashCardResponse struct {
-	Cards []Card
 }
 
 func convertRespToStruct(resp string) (*FlashCardResponse, error) {

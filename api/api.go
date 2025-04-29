@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 
 	"CueMind/internal/database"
 	"CueMind/internal/server"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/lib/pq"
 )
@@ -110,7 +112,6 @@ func (cfg *Config) Sock(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
 }
 
 func DBConnect(dbConnString string) (*database.Queries, *sql.DB) {
@@ -125,231 +126,6 @@ func DBConnect(dbConnString string) (*database.Queries, *sql.DB) {
 	}
 	queries := database.New(conn)
 	return queries, conn
-}
-
-func (cfg *Config) CreateCollection(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-	var collection server.Collection
-	err = json.NewDecoder(r.Body).Decode(&collection)
-	if err != nil {
-		RespondWithErr(w, 500, "error on decoding")
-		return
-	}
-	if collection.Name == "" {
-		RespondWithErr(w, 400, "name cannot be empty")
-		return
-	}
-	err = cfg.Server.CreateCollection(r.Context(), userID, &collection)
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-	RespondWithJson(w, 200, collection)
-}
-
-func (cfg *Config) GetCollection(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-
-	collectionIDStr := chi.URLParam(r, "collectionID")
-	collectionID, err := uuid.Parse(collectionIDStr)
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-
-	collection, err := cfg.Server.GetCollection(r.Context(), userID, collectionID)
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-	RespondWithJson(w, 200, collection)
-
-}
-
-func (cfg *Config) ListCollections(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-	}
-	collections, err := cfg.Server.ListCollections(r.Context(), userID)
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-	RespondWithJson(w, 200, collections)
-}
-
-func (cfg *Config) DeleteCollection(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	collectionID, err := getIdFromPath(r, "collectionID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	err = cfg.Server.DeleteCollection(r.Context(), collectionID, userID)
-	if err != nil {
-		RespondWithErr(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	RespondWithJson(w, 204, nil)
-
-}
-
-func (cfg *Config) GetCard(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	cardId, err := getIdFromPath(r, "cardID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	card, err := cfg.Server.GetCard(r.Context(), userID, cardId)
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	RespondWithJson(w, 200, card)
-
-}
-
-func (cfg *Config) CreateCard(w http.ResponseWriter, r *http.Request) {
-
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	collectionID, err := getIdFromPath(r, "collectionID")
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-
-	//get card data from requst
-	var card server.Card
-	err = json.NewDecoder(r.Body).Decode(&card)
-	if err != nil {
-		RespondWithErr(w, 400, err.Error())
-		return
-	}
-	if len(card.Front) == 0 || len(card.Back) == 0 {
-		RespondWithErr(w, 400, "Card data cannot be empty")
-		return
-	}
-
-	//check that user owns the collection
-	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
-	if err != nil {
-		RespondWithErr(w, 403, err.Error())
-		return
-	}
-
-	//create card
-	err = cfg.Server.CreateCard(r.Context(), collectionID, &card)
-	if err != nil {
-		RespondWithErr(w, 500, err.Error())
-		return
-	}
-	RespondWithJson(w, 200, card)
-}
-
-func (cfg *Config) DeleteCard(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	collectionID, err := getIdFromPath(r, "collectionID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	cardID, err := getIdFromPath(r, "cardID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	//check user owns the collection
-	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
-	if err != nil {
-		RespondWithErr(w, 403, err.Error())
-		return
-	}
-
-	err = cfg.Server.DeleteCard(context.TODO(), cardID, collectionID)
-	if err != nil {
-		RespondWithErr(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	RespondWithJson(w, 202, nil)
-}
-
-func (cfg *Config) UpdateCard(w http.ResponseWriter, r *http.Request) {
-	userID, err := getIdFromContext(r.Context(), "userID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	collectionID, err := getIdFromPath(r, "collectionID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	cardID, err := getIdFromPath(r, "cardID")
-	if err != nil {
-		RespondWithErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	//check user owns the collection
-	err = cfg.Server.CheckUserOwnership(r.Context(), collectionID, userID)
-	if err != nil {
-		RespondWithErr(w, 403, err.Error())
-		return
-	}
-
-	type Data struct {
-		Front string `json:"front"`
-		Back  string `json:"back"`
-	}
-	var data Data
-
-	err = json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		RespondWithErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	err = cfg.Server.UpdateCard(r.Context(), cardID, data.Front, data.Back)
-	if err != nil {
-		RespondWithErr(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	RespondWithJson(w, 204, nil)
-
 }
 
 func getIdFromContext(ctx context.Context, key string) (uuid.UUID, error) {
@@ -369,4 +145,37 @@ func getIdFromPath(r *http.Request, key string) (uuid.UUID, error) {
 		return uuid.UUID{}, fmt.Errorf("invalid %v path parameter: %v", key, err)
 	}
 	return id, nil
+}
+
+func RespondWithJson(w http.ResponseWriter, code int, data any) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(code)
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
+		log.Println("Failed on Encodeing JSON")
+		http.Error(w, fmt.Sprintf("failed in returning Json err: %v", err), 500)
+		return
+	}
+}
+
+func RespondWithErr(w http.ResponseWriter, code int, errorString string) {
+	RespondWithJson(w, code, map[string]string{"Error": errorString})
+}
+
+func HashPass(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+func ValidatePass(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func ValidateEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }

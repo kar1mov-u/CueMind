@@ -194,8 +194,8 @@ func (s *Server) DeleteFile(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *Server) AddFileName(ctx context.Context, file File) error {
-	err := s.dB.AddFileName(ctx, database.AddFileNameParams{FileName: sql.NullString{String: file.Filename, Valid: true}, CollectionID: file.CollectionID, UserID: file.UserID, ID: file.ID})
+func (s *Server) CompeleteFileDetails(ctx context.Context, file File) error {
+	err := s.dB.CompeleteFileDetails(ctx, database.CompeleteFileDetailsParams{FileName: sql.NullString{String: file.Filename, Valid: false}, CollectionID: file.CollectionID, UserID: file.UserID, ID: file.ID, Format: file.Format})
 	if err != nil {
 		return fmt.Errorf("error on deleting file :%v", err)
 	}

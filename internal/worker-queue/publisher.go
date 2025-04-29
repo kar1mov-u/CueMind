@@ -16,6 +16,7 @@ type Message struct {
 	CollectionID uuid.UUID `json:"collectionID"`
 	FileName     string    `json:"filename"`
 	FileKey      string    `json:"file_key"`
+	Format       string    `json:"format"`
 }
 
 type Queue struct {
