@@ -13,6 +13,7 @@ CREATE TABLE cards(
     front TEXT NOT NULL,
     back TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL,
+    due_date TIMESTAMP DEFAULT NOW(),
     collection_id UUID NOT NULL REFERENCES collections(id)
 );
 

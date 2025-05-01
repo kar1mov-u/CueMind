@@ -102,7 +102,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		var messageData Message
 		err := json.Unmarshal(msg.Body, &messageData)
 		if err != nil {
-			failure(msg, fmt.Errorf("ERROR : Worker cannot Unmarshal Message DATA:%v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 			continue
 		}
 
@@ -110,7 +111,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		ctx := context.Background()
 		file, err := cfg.storage.GetFile(ctx, messageData.FileKey)
 		if err != nil {
-			failure(msg, fmt.Errorf("Error : Worker cannot GET file from Storage : %v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 			continue
 		}
 		defer file.Close()
@@ -120,19 +122,22 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 			//create non-pdf file in tmp
 			curDir, err := os.Getwd()
 			if err != nil {
-				failure(msg, err)
+				failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 				continue
 			}
 			nonPdfFilename := fmt.Sprintf("%v/tmp/non-pdf/%v", curDir, messageData.FileKey)
 			tmpPrevFile, err := os.Create(nonPdfFilename)
 			if err != nil {
-				failure(msg, err)
+				failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 				continue
 			}
 			//copy data from storage file to the new file
 			_, err = io.Copy(tmpPrevFile, file)
 			if err != nil {
-				failure(msg, err)
+				failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 				continue
 			}
 
@@ -140,7 +145,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 
 			pdfFile, err := convertToPdf(nonPdfFilename, curDir+"/tmp/pdf/")
 			if err != nil {
-				failure(msg, err)
+				failure(msg, &cfg, messageData.FileKey, messageData.FileName, err)
+
 				continue
 			}
 
@@ -156,7 +162,8 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 
 		flashcards, err := cfg.llm.GenerateCardsFromFile(ctx, file)
 		if err != nil {
-			failure(msg, fmt.Errorf("ERROR : Worker cannot Generate LLM Response : %v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
+
 			continue
 		}
 
@@ -165,18 +172,21 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		//TO-DO : later implement batch insert
 		err = insertCardsToDB(flashcards.Cards, messageData.CollectionID, cfg)
 		if err != nil {
-			failure(msg, fmt.Errorf("ERROR : Worker cannot Insert cards to DB: %v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
+
 			continue
 		}
 
 		fileID, err := uuid.Parse(messageData.FileKey)
 		if err != nil {
-			failure(msg, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
+
 			continue
 		}
 		err = cfg.db.Processed(ctx, database.ProcessedParams{ID: fileID, Processed: true})
 		if err != nil {
-			failure(msg, fmt.Errorf("ERROR: Worker cannot update processed status in DB : %v \n", err))
+			failure(msg, &cfg, messageData.FileKey, messageData.FileName, fmt.Errorf("ERROR: Worker cannot Parse file ID :%v \n", err))
+
 			continue
 		}
 
@@ -184,7 +194,7 @@ func startSingleWorker(id int, cfg WorkerConfig) error {
 		elapsed := time.Since(start)
 		log.Printf("Worker %d finished job. Elapsed time: %s\n", id, elapsed)
 
-		err = cfg.hub.Delete(fileID.String(), messageData.FileName)
+		err = cfg.hub.Delete(fileID.String(), messageData.FileName, true)
 		if err != nil {
 			log.Printf("cannot send to the websocket : %v", err)
 		}
@@ -220,8 +230,8 @@ func insertCardsToDB(cards []llm.Card, collectionID uuid.UUID, cfg WorkerConfig)
 
 }
 
-func failure(msg amqp091.Delivery, err error) {
-
+func failure(msg amqp091.Delivery, cfg *WorkerConfig, fileID, fileName string, err error) {
+	cfg.hub.Delete(fileID, fileName, false)
 	msg.Nack(false, false)
 	log.Printf("Worker failed to process message: %v", err)
 }

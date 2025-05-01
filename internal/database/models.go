@@ -32,7 +32,7 @@ type File struct {
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
 	FileName     sql.NullString
-	Format       string
+	Format       sql.NullString
 	UploadedAt   time.Time
 	Processed    bool
 }

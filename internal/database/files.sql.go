@@ -13,12 +13,12 @@ import (
 )
 
 const compeleteFileDetails = `-- name: CompeleteFileDetails :exec
-UPDATE files SET file_name=$1 and format =$2 WHERE id=$3 and collection_id=$4 and user_id=$5
+UPDATE files SET file_name=$1,format =$2 WHERE id=$3 and collection_id=$4 and user_id=$5
 `
 
 type CompeleteFileDetailsParams struct {
 	FileName     sql.NullString
-	Format       string
+	Format       sql.NullString
 	ID           uuid.UUID
 	CollectionID uuid.UUID
 	UserID       uuid.UUID
