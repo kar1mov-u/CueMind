@@ -1,83 +1,90 @@
-🧠 CueMind – Intelligent Flashcard Generator
+# 🧠 CueMind – Intelligent Flashcard Generator
 
-CueMind is a modern Anki-style spaced repetition app powered by LLMs and Go.
-Users can upload learning materials (PDFs), and the system automatically generates high-quality flashcards using Google's Gemini API. Flashcards are reviewed through a dynamic interface that adapts based on user memory strength.
-🚀 Features
+CueMind is a modern Anki-style spaced repetition app powered by LLMs and Go.  
+Users can upload learning materials (PDFs, PPTX, DOCX), and the system automatically generates high-quality flashcards using Google's Gemini API. Flashcards are reviewed through a dynamic interface that adapts based on user memory strength.
 
-    ✨ LLM-Powered Flashcards: Upload PDFs, and Gemini generates flashcards in JSON format
+---
 
-    🗃️ Spaced Repetition Engine: Implements a simplified SM-2 algorithm for personalized reviews
+## 🚀 Features
 
-    📁 Smart File Uploads: Users upload via pre-signed AWS S3 URLs (secure, scalable)
+- ✨ **LLM-Powered Flashcards**: Upload files, and Gemini generates flashcards in JSON format
+- 🔁 **Spaced Repetition Engine**: Implements a simplified SM-2 algorithm for personalized reviews
+- 📁 **Smart File Uploads**: Upload any file (PDF, PPTX, DOCX). Files are converted and stored in S3 via pre-signed URLs
+- 🧵 **Asynchronous Processing**: Background workers consume jobs from RabbitMQ and handle heavy LLM requests
+- 🔐 **JWT Authentication**: Secure login and protected routes
+- 🖥️ **Real-Time Feedback**: Users are notified via WebSockets when new cards are ready
+- 🌱 **Clean Project Structure**: Modular Go services for DB, LLM, file processing, and WebSocket management
 
-    🧵 Asynchronous Processing: Background workers consume jobs from RabbitMQ and handle heavy LLM requests
+---
 
-    🔐 JWT Authentication: Users are authenticated with secure token-based login
+## 🛠 Tech Stack
 
-    🖥️ Real-Time Feedback: Users are notified via WebSockets when new cards are ready
+| Layer          | Tech                                         |
+|----------------|----------------------------------------------|
+| Backend        | Go (Chi + net/http)                          |
+| Frontend       | React (with hooks)                           |
+| LLM            | Gemini (Google's Generative AI)              |
+| Storage        | AWS S3 (with pre-signed URL uploads)         |
+| Messaging Queue| RabbitMQ                                     |
+| Real-Time      | WebSockets (Gorilla WebSocket)               |
+| DB             | PostgreSQL (with sqlc)                       |
+| Auth           | JWT-based authentication                     |
+| File Conversion| Custom microservice (LibreOffice or unioffice) |
 
-    🌱 Clean Project Structure: Modular Go services for database, LLM, queue, WebSocket hub
+---
 
-🛠 Tech Stack
-Layer	Tech
-Backend	Go (Chi + net/http)
-Frontend	React (with hooks, no framework)
-LLM	Gemini (Google's Generative AI)
-Storage	AWS S3 (pre-signed URL uploads)
-Messaging Queue	RabbitMQ
-Real-Time	WebSockets (Gorilla WebSocket)
-DB	PostgreSQL (with sqlc)
-Auth	JWT-based authentication
-📦 Project Structure
+## 📦 Project Structure
 
+```
 ├── cmd/                # Main entry points (server, worker)
 ├── internal/
 │   ├── api/            # HTTP handlers
 │   ├── auth/           # JWT logic
 │   ├── database/       # SQLC queries + models
-│   ├── llm/            # Gemini client and card generation
+│   ├── llm/            # Gemini client and flashcard generation
 │   ├── storage/        # S3 uploader + presigned logic
 │   ├── queue/          # RabbitMQ publisher/consumer
-│   └── ws/             # WebSocket hub
+│   ├── converter/      # File conversion service (pptx/docx → pdf)
+│   └── ws/             # WebSocket hub for real-time feedback
 ├── sql/                # DB migrations and queries
 └── frontend/           # React SPA (study interface)
+```
 
-🔁 How It Works
+---
 
-    User uploads a file → stored in S3
+## 🔁 How It Works
 
-    Server queues a job → sent to RabbitMQ
+1. **User uploads a file** → stored in S3
+2. **Server queues a job** → RabbitMQ task created
+3. **Worker picks the job** → downloads + converts file → sends to Gemini → receives flashcards
+4. **Flashcards saved to DB**
+5. **WebSocket notifies client** → user begins review
 
-    Worker picks the job → downloads file, sends to Gemini, receives flashcards
+---
 
-    Flashcards saved to DB
+## 🧪 Local Development
 
-    WebSocket notifies client → study session begins
+1. Run PostgreSQL and RabbitMQ using Docker
+2. Start backend: `go run cmd/server/main.go`
+3. Start worker: `go run cmd/worker/main.go`
+4. Start frontend: `npm start` (React app)
+5. Backend API: `localhost:8000`, Frontend: `localhost:3000`
 
-🧪 Local Development
+---
 
-    Run PostgreSQL and RabbitMQ (via Docker)
+## 💡 Future Ideas
 
-    Run go run cmd/server/main.go (starts API + WebSocket)
+- [ ] Track spaced repetition stats per user
+- [ ] Add retry logic & dead-letter queue for failed jobs
+- [ ] Deploy with Fly.io / Vercel / Railway
+- [ ] Export flashcards as Anki .apkg format
 
-    Run go run cmd/worker/main.go (starts background processing)
+---
 
-    Frontend runs on localhost:3000, backend on localhost:8000
+## 🙌 Acknowledgements
 
-💡 Future Ideas
+- Inspired by Anki and Habitica
+- Built using Google Gemini, AWS S3, and PostgreSQL
+- Demonstrates full-stack architecture, messaging, file conversion, and AI integration
 
-Support .pptx and .docx with built-in file conversion
-
-Add Anki-style answer grading and statistics
-
-Deploy to Fly.io + Vercel
-
-    Add multi-user spaced repetition tracking
-
-🙌 Acknowledgements
-
-    Inspired by Anki and Habitica
-
-    Flashcards generated with Google's Gemini API
-
-    Built for portfolio-level demonstration of full-stack system design
+---
